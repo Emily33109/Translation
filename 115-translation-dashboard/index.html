@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#145e55" />
+    <meta name="description" content="115 翻譯專案儀表板：離線 AI 相容性檢查與翻譯測試。" />
+    <title>115 翻譯專案儀表板</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand"><div class="brand-mark">115</div><div><strong>翻譯專案</strong><span>研究工作台</span></div></div>
+        <div class="nav-label">工作區</div>
+        <button class="nav-item" data-page="overview"><span>▦</span> 儀表板總覽</button>
+        <button class="nav-item active" data-page="ai"><span>◈</span> AI 環境測試</button>
+        <button class="nav-item" data-page="translation"><span>文</span> 翻譯測試</button>
+        <button class="nav-item" data-page="records"><span>≡</span> 本機研究紀錄</button>
+        <div class="sidebar-foot"><span class="status-dot"></span> 第一階段開發版 <small>尚未連接帳號系統</small></div>
+      </aside>
+      <main class="main-content">
+        <header class="topbar"><div><div class="eyebrow">115 TRANSLATION PROJECT</div><h1 id="pageTitle">AI 環境測試</h1></div><div class="topbar-right"><span class="dev-chip">原型開發中</span></div></header>
+        <section id="page-overview" class="page">
+          <div class="welcome-panel"><div><div class="eyebrow light">LOCAL AI WORKSPACE</div><h2>先確認這台電腦能否執行 AI 翻譯</h2><p>先完成環境檢查、模型載入與實際翻譯。測試通過後，才會將 AI 狀態標示為已就緒。</p><button class="button primary" data-go="ai">開始相容性檢查 <span>→</span></button></div><div class="welcome-art" aria-hidden="true"><div class="orbit orbit-a"></div><div class="orbit orbit-b"></div><div class="chip-core">AI</div><span class="art-dot dot-a"></span><span class="art-dot dot-b"></span></div></div>
+          <div class="section-heading"><div><h2>目前進度</h2><p>第一階段：網站骨架與 AI 測試</p></div><span class="muted-label">Prototype 0.1.0</span></div>
+          <div class="metric-grid"><article class="metric-card"><div class="metric-top"><span>環境檢查</span><span class="metric-icon">⌘</span></div><strong id="overviewEnv">尚未測試</strong><p>瀏覽器、HTTPS、WebGPU 與 GPU 資訊</p></article><article class="metric-card"><div class="metric-top"><span>模型狀態</span><span class="metric-icon">◈</span></div><strong id="overviewModel">尚未載入</strong><p>需實際載入模型才能確認相容性</p></article><article class="metric-card"><div class="metric-top"><span>翻譯測試</span><span class="metric-icon">文</span></div><strong id="overviewTranslation">尚未測試</strong><p>使用模型完成一次測試翻譯</p></article></div>
+          <div class="notice"><strong>本階段說明</strong><p>目前尚未加入 Firebase 登入與角色核准。研究紀錄預計保存在使用者本機，不會自動上傳雲端。首次載入模型及程式函式庫需要網路。</p></div>
+        </section>
+        <section id="page-ai" class="page active">
+          <div class="intro-row"><div><h2>檢查這台電腦</h2><p>環境檢查只能初步評估相容性；最終結果以模型成功載入並完成翻譯為準。</p></div><button id="btnCheck" class="button secondary">重新檢查</button></div>
+          <div id="envRows" class="check-list"><div class="empty-state">按「重新檢查」開始檢查瀏覽器與 GPU 環境。</div></div>
+          <div class="card-section"><div class="section-heading"><div><h2>模型設定</h2><p>系統會依 shader-f16 支援情況推薦初始模型，也可以手動切換。</p></div></div>
+            <label class="field-label" for="model">選擇模型</label><select id="model" class="field-control"><option value="Qwen3-0.6B-q4f16_1-MLC">Qwen3 0.6B（q4f16，較省記憶體）</option><option value="Qwen3-0.6B-q4f32_1-MLC">Qwen3 0.6B（q4f32，替代選項）</option><option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Qwen2.5 0.5B Instruct（備選）</option><option value="Qwen3.5-0.8B-q4f16_1-MLC">Qwen3.5 0.8B（較大型備選）</option></select>
+            <div class="button-row"><button id="btnLoad" class="button primary">下載並載入模型</button><span class="muted-label">第一次使用需下載模型檔案</span></div><div class="progress-track"><div id="bar" class="progress-fill"></div></div><div id="loadStatus" class="status-message" role="status">尚未載入模型</div>
+          </div>
+        </section>
+        <section id="page-translation" class="page">
+          <div class="notice info"><strong>翻譯測試</strong><p>必須先在「AI 環境測試」頁成功載入模型。翻譯會在目前瀏覽器執行，並將測試紀錄保存於本機 IndexedDB。</p></div>
+          <div class="form-card"><label class="field-label" for="instr">翻譯指令</label><input id="instr" class="field-control" type="text" value="請把下列英文翻譯成繁體中文（台灣用語），只輸出譯文：" /><label class="field-label" for="src">英文原文</label><textarea id="src" class="field-control text-area">The wafer yield improved after the etching process was adjusted.</textarea><label class="check-option"><input type="checkbox" id="optConv" checked /> 自動轉換為繁體中文（台灣用語）</label><div id="convStatus" class="muted-label">簡轉繁工具將在需要時載入。</div><div class="button-row"><button id="btnGo" class="button primary" disabled>開始翻譯</button><button id="btnStop" class="button secondary" disabled>停止</button><span id="speed" class="muted-label"></span></div><label class="field-label">AI 翻譯結果</label><div id="out" class="translation-output" aria-live="polite">尚未產生翻譯結果。</div></div>
+        </section>
+        <section id="page-records" class="page">
+          <div class="section-heading"><div><h2>本機研究紀錄</h2><p>紀錄只存在這台電腦的瀏覽器中，不會自動上傳 Firebase。</p></div><div class="button-row"><button id="btnCsv" class="button secondary">匯出 CSV</button><button id="btnJson" class="button primary">匯出 JSON</button></div></div>
+          <div class="notice"><strong>備份提醒</strong><p>請定期下載備份。清除瀏覽器網站資料、使用無痕視窗或更換電腦，可能導致本機紀錄無法取得。</p></div>
+          <div class="table-wrap"><table><thead><tr><th>時間</th><th>模型</th><th>原文</th><th>譯文</th><th>耗時</th></tr></thead><tbody id="logBody"><tr><td colspan="5" class="table-empty">尚無本機紀錄</td></tr></tbody></table></div>
+          <div class="button-row"><label class="button secondary file-button" for="jsonImport">匯入 JSON 備份</label><input type="file" id="jsonImport" accept="application/json,.json" hidden /><button id="btnClear" class="button danger-outline">清除本機紀錄</button><span id="recordStatus" class="muted-label"></span></div>
+        </section>
+        <footer class="footer">115 翻譯專案儀表板 <span>第一階段原型 · AI 在瀏覽器本機執行</span></footer>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
