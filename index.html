@@ -719,11 +719,13 @@ function subscribeMembers() {
   const base = [S.F.where("sessionId", "==", S.sid), S.F.where("groupId", "==", S.me.groupId)];
   S.unsubs.push(S.F.onSnapshot(S.F.query(col("roster"), ...base), (snap) => {
     S.members = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email), "zh"));
+    if (!S.me) return;
     const mine = S.members.find((m) => m.anonId === S.me.anonId);
     if (mine) { S.me.name = mine.name || ""; S.me.pm = !!mine.pm; }
     recomputeMe(); rr();
   }, (e) => console.error(e)));
   S.unsubs.push(S.F.onSnapshot(dref("groupRoles", S.sid + "~" + S.me.groupId), (snap) => {
+    if (!S.me) return;
     S.groupRoles = snap.exists() ? snap.data() : null;
     recomputeMe(); rr();
   }, (e) => console.error(e)));
@@ -748,6 +750,7 @@ async function loadBank() {
 function subscribeTasks() {
   const q = S.F.query(col("tasks"), S.F.where("sessionId", "==", S.sid), S.F.where("groupId", "==", S.me.groupId));
   S.unsubs.push(S.F.onSnapshot(q, (snap) => {
+    if (!S.me) return;
     S.tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => byTime(a, b) || String(a.code).localeCompare(String(b.code)));
     if (S.pendingPick && S.tasks.find((t) => t.id === S.pendingPick)) { S.taskId = S.pendingPick; S.pendingPick = ""; }
     if (!S.taskId || !S.tasks.find((t) => t.id === S.taskId)) {
@@ -882,7 +885,7 @@ function render() {
       case "login": node = viewLogin(); break;
       case "noroster": node = viewNoRoster(); break;
       case "nosession": node = viewNoSession(); break;
-      case "student": node = S.showRefl ? viewReflection() : viewStudent(); break;
+      case "student": node = !S.me ? h("div", { class: "narrow" }, h("div", { class: "card" }, h("p", null, "載入中…"))) : S.showRefl ? viewReflection() : viewStudent(); break;
       case "teacher": node = viewTeacher(); break;
       case "prep": node = viewPrep(); break;
       default: node = h("div", { class: "narrow" }, h("div", { class: "card" }, h("p", null, "載入中…")));
