@@ -1,0 +1,2578 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>翻譯實作儀表板</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3F4F1; --card:#FFFFFF; --line:#D9DDD8; --ink:#1B2320; --mute:#5B6661;
+  --accent:#0E6B62; --accent-ink:#0A4F48; --ok-bg:#E2F0EE; --ok-line:#A9CFCA;
+  --warn-bg:#FBEFD5; --warn-line:#E3C98A; --warn-ink:#6B4600;
+  --bad-bg:#F6DADA; --bad-ink:#6E1F1F; --bad-line:#E2A9A9; --off-bg:#ECEEEB; --off-ink:#3F4A45;
+  --ins-bg:#D8EEDF; --ins-ink:#144D2A; --del-bg:#F6DADA; --del-ink:#6E1F1F;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.7 'Noto Sans TC',system-ui,-apple-system,'Microsoft JhengHei',sans-serif}
+.wrap{max-width:1360px;margin:0 auto;padding:24px 20px 72px;display:flex;flex-direction:column;gap:20px}
+.narrow{max-width:760px;margin:0 auto;padding:40px 16px 72px;display:flex;flex-direction:column;gap:20px}
+h1{margin:0;font-size:26px;line-height:1.3}
+h2{margin:0;font-size:18px;line-height:1.4}
+h3{margin:0;font-size:16px;line-height:1.4}
+p{margin:0}
+.sub{color:var(--mute);font-size:14px;line-height:1.7}
+.mono{font:500 13px 'IBM Plex Mono',ui-monospace,monospace;color:var(--mute);word-break:break-word}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card.ok{background:var(--ok-bg);border-color:var(--ok-line)}
+.card.warn{background:var(--warn-bg);border-color:var(--warn-line);color:#3D2A00}
+.card.bad{background:var(--bad-bg);border-color:var(--bad-line);color:var(--bad-ink)}
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+.top .l{display:flex;flex-direction:column;gap:6px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:500 13px 'IBM Plex Mono',ui-monospace,monospace;background:#fff;border:1px solid var(--line);border-radius:6px;padding:5px 10px}
+.chip.t{font-family:'Noto Sans TC',sans-serif}
+.btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button{min-height:44px;padding:0 18px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer}
+button.ghost{background:#fff;color:var(--accent-ink);border:1px solid var(--accent)}
+button.plain{background:#fff;color:var(--ink);border:1px solid #B9C0BB;font-weight:500}
+button.danger{background:#fff;color:var(--bad-ink);border:1px solid var(--bad-line)}
+button.sm{min-height:36px;padding:0 12px;font-size:14px}
+button:disabled{background:#C9CFCB;color:#4A5450;border-color:#C9CFCB;cursor:not-allowed}
+button.ghost:disabled,button.plain:disabled,button.danger:disabled{background:#F3F4F1}
+label{font-size:14px;color:var(--mute)}
+input[type=text],input[type=email],select,textarea{width:100%;font:400 16px/1.7 'Noto Sans TC',sans-serif;color:var(--ink);padding:8px 12px;border:1px solid #B9C0BB;border-radius:8px;background:#fff}
+select{min-height:44px;padding:0 12px}
+input[type=text],input[type=email]{min-height:44px}
+textarea{resize:vertical;min-height:120px}
+textarea.editor{min-height:200px}
+textarea:read-only{background:#F3F4F1}
+.chk{display:flex;align-items:center;gap:8px;min-height:44px;font-size:15px;color:var(--ink)}
+.chk input{width:18px;height:18px;margin:0}
+.badge{display:inline-block;padding:3px 10px;border-radius:6px;font-size:13px;font-weight:700;background:var(--off-bg);color:var(--off-ink);white-space:nowrap}
+.badge.ok{background:var(--ok-bg);color:var(--accent-ink)}
+.badge.warn{background:var(--warn-bg);color:var(--warn-ink)}
+.badge.bad{background:var(--bad-bg);color:var(--bad-ink)}
+.cols{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.main{flex:999 1 620px;min-width:0;display:flex;flex-direction:column;gap:20px}
+.side{flex:1 1 380px;min-width:0;display:flex;flex-direction:column;gap:20px}
+.tasks{display:flex;flex-wrap:wrap;gap:8px}
+.taskbtn{min-height:44px;display:flex;align-items:center;gap:8px;padding:0 14px;border:1px solid #B9C0BB;border-radius:8px;background:#fff;color:var(--ink);font:500 14px 'Noto Sans TC',sans-serif;cursor:pointer}
+.taskbtn.on{border-color:var(--ink);background:var(--ink);color:#fff}
+.stepper{display:flex;flex-wrap:wrap;gap:14px}
+.step{flex:1 1 140px;display:flex;gap:10px;align-items:flex-start;min-width:0}
+.dot{flex:none;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:700 12px 'IBM Plex Mono',monospace;border:2px solid #B9C0BB;color:var(--mute);background:#fff}
+.step.done .dot{background:var(--accent);border-color:var(--accent);color:#fff}
+.step.cur .dot{border-color:var(--accent);color:var(--accent)}
+.step b{font-size:15px}
+.step small{display:block;color:var(--mute);font-size:13px;line-height:1.5}
+.src{white-space:pre-wrap;background:#F3F4F1;border-radius:8px;padding:12px 14px;font-size:16px;line-height:1.8;max-height:280px;min-height:80px;overflow-y:auto;resize:vertical;border:1px solid var(--line)}
+.out{white-space:pre-wrap;background:var(--ok-bg);border:1px solid var(--ok-line);border-radius:8px;padding:10px 12px;line-height:1.7;max-height:220px;overflow-y:auto}
+.aiscroll{display:flex;flex-direction:column;gap:10px;max-height:380px;min-height:120px;overflow-y:auto;resize:vertical;padding:10px;border:1px solid var(--line);border-radius:8px;background:#FAFBF9}
+.listscroll{max-height:320px;overflow-y:auto;padding-right:4px}
+.scrollbox{max-height:320px;overflow-y:auto}
+textarea.segtext{min-height:90px;max-height:240px}
+.pe{display:flex;flex-direction:column;gap:8px}
+.prow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.prow.locked{background:#F3F4F1;color:var(--mute)}
+.prow select{width:auto;min-width:130px;flex:0 1 190px}
+.pno{flex:none;width:24px;height:24px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font:700 12px 'IBM Plex Mono',monospace}
+.pk{font-weight:700;min-width:96px}
+.perr{background:var(--bad-bg);color:var(--bad-ink);border:1px solid var(--bad-line);border-radius:8px;padding:8px 12px;font-size:14px;line-height:1.6}
+.two{display:flex;flex-wrap:wrap;gap:16px}
+.two>*{flex:1 1 300px;min-width:0}
+.box{border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.box .txt{white-space:pre-wrap;line-height:1.8;max-height:260px;overflow-y:auto}
+.diff{white-space:pre-wrap;line-height:1.9;font-size:16px}
+.diff ins{background:var(--ins-bg);color:var(--ins-ink);text-decoration:underline;padding:0 1px}
+.diff del{background:var(--del-bg);color:var(--del-ink);text-decoration:line-through;padding:0 1px}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{border-bottom:2px solid var(--ink);color:var(--mute);font-size:13px;white-space:nowrap}
+td.m{font:500 12px 'IBM Plex Mono',monospace;white-space:nowrap}
+td.cell{max-width:340px;white-space:pre-wrap;word-break:break-word}
+.row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
+.row .l{display:flex;flex-direction:column;flex:1 1 240px;min-width:0}
+.row .l .badge{align-self:flex-start}
+.row .l small{color:var(--mute);font-size:13px;line-height:1.6}
+.bar{height:14px;background:var(--off-bg);border-radius:7px;overflow:hidden}
+.bar>div{height:14px;background:var(--accent);width:0%}
+.tabs{display:flex;flex-wrap:wrap;gap:8px}
+.tab{min-height:44px;padding:0 16px;border:1px solid #B9C0BB;border-radius:8px;background:#fff;color:var(--ink);font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer}
+.tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.fields{display:flex;flex-wrap:wrap;gap:4px 18px}
+.fields .chk{flex:0 1 220px}
+.grid{display:flex;flex-wrap:wrap;gap:12px}
+.grid>*{flex:1 1 200px;min-width:0}
+.fld{display:flex;flex-direction:column;gap:6px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:92vw;z-index:50;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:var(--ink);color:#fff;border-radius:8px;padding:10px 16px;font-size:14px;line-height:1.6;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+.toast.bad{background:var(--bad-ink)}
+.toast.ok{background:var(--accent-ink)}
+details summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}
+.hint{font-size:13px;color:var(--mute);line-height:1.6}
+.sr{position:absolute;left:-9999px}
+@media (max-width:640px){ .wrap{padding:16px 12px 64px} .card{padding:16px} }
+.duty{margin-top:12px;border:1px solid var(--line,#ddd);border-radius:8px;padding:8px 12px}
+.duty summary{cursor:pointer;font-weight:600}
+.dutyitem h3{margin:10px 0 4px;font-size:.95rem}
+.dutyitem ol{margin:0 0 6px;padding-left:1.4em}
+.dutyitem li{margin:2px 0}
+</style>
+</head>
+<body>
+<div id="app"><div class="narrow"><div class="card"><p>載入中…</p></div></div></div>
+<div id="toast" aria-live="polite"></div>
+<noscript>這個頁面需要開啟 JavaScript。</noscript>
+<script type="module">
+/* =====================================================================
+ *  翻譯實作儀表板（最終版）
+ *  請只修改「設定區」。其他程式不需要動。
+ * ===================================================================== */
+
+// ---------- 設定區（開始）----------
+
+// 1) Firebase 專案設定：Firebase 主控台 → 專案設定 → 一般 → 您的應用程式 → SDK 設定
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC_RYkO9j8OlqbdnGdfMsmfj8_jwpN6xOU",
+  authDomain: "transproject-89150.firebaseapp.com",
+  projectId: "transproject-89150",
+  storageBucket: "transproject-89150.firebasestorage.app",
+  messagingSenderId: "781116970183",
+  appId: "1:781116970183:web:331d79f35f2673bf185ae2",
+  measurementId: "G-BKXPCHEL58"
+};
+
+// 2) 教師帳號（Google 帳號 email）。必須與 firestore.rules 裡的清單一致。
+const TEACHER_EMAILS = ["f114133109@nkust.edu.tw"];
+
+// 3) 登入時預選的學校網域（只是提示，真正的控管是教師名單）。不需要就留空字串。
+const GOOGLE_DOMAIN_HINT = "";
+
+// 4) 瀏覽器分頁上的小圖示（任何一個 Emoji 都可以，例如 "📝" "🌏" "🔬"）
+const SITE_ICON = "📝";
+(() => {
+  try {
+    const l = document.createElement("link");
+    l.rel = "icon";
+    l.href = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">' + SITE_ICON + "</text></svg>");
+    document.head.appendChild(l);
+  } catch (e) {}
+})();
+
+// 5) 課後反思題目（可自行修改、增減）。
+const REFLECTION_PROMPTS = [
+  "這次翻譯過程中，你遇到最大的困難是什麼？你怎麼處理？",
+  "你是怎麼使用離線 AI 的？哪些 AI 的內容你採用了、哪些沒有採用？為什麼？",
+  "團隊交接與審校的過程中，你覺得哪個環節最有幫助或最有問題？"
+];
+
+// ---------- 設定區（結束）----------
+
+/* 目標語言：原文一律是中文，各組各自翻成一種語言 */
+const LANGS = {
+  en: {
+    name: "英文", short: "中翻英", html: "en", latin: true, check: /[A-Za-z]{3,}/,
+    sys: "You are a professional Chinese-to-English translator for the semiconductor industry. Translate the user's Chinese text into natural, accurate English. Output only the translation, with no explanation.",
+    fewOut: "The wafer was cleaned in the cleanroom.",
+    test: "調整蝕刻製程後，晶圓良率提升了。", ph: "Type your English translation here"
+  },
+  ja: {
+    name: "日文", short: "中翻日", html: "ja", latin: false, check: /[\u3040-\u30ff]/,
+    sys: "あなたは半導体業界の専門翻訳者です。ユーザーが入力した中国語の文章を、自然で正確な日本語に翻訳してください。翻訳文のみを出力し、説明は書かないでください。",
+    fewOut: "ウェハーはクリーンルームで洗浄された。",
+    test: "調整蝕刻製程後，晶圓良率提升了。", ph: "ここに日本語の訳文を入力"
+  },
+  de: {
+    name: "德文", short: "中翻德", html: "de", latin: true, check: /[A-Za-zÄÖÜäöüß]{3,}/,
+    sys: "Du bist ein professioneller Fachübersetzer für die Halbleiterindustrie. Übersetze den chinesischen Text des Benutzers in korrektes, natürliches Deutsch. Gib nur die Übersetzung aus, ohne Erklärungen.",
+    fewOut: "Der Wafer wurde im Reinraum gereinigt.",
+    test: "調整蝕刻製程後，晶圓良率提升了。", ph: "Hier die deutsche Übersetzung eingeben"
+  }
+};
+const LANG_KEYS = Object.keys(LANGS);
+const FEW_SRC = "晶圓在無塵室中完成清洗。";
+
+const FIREBASE_VER = "10.14.1";
+const FB_URLS = {
+  app: `https://www.gstatic.com/firebasejs/${FIREBASE_VER}/firebase-app.js`,
+  auth: `https://www.gstatic.com/firebasejs/${FIREBASE_VER}/firebase-auth.js`,
+  fs: `https://www.gstatic.com/firebasejs/${FIREBASE_VER}/firebase-firestore.js`
+};
+const WEBLLM_URL = "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.83/+esm";
+const OPENCC_URL = "https://cdn.jsdelivr.net/npm/opencc-js@1.4.2/dist/esm/full.js";
+const MODEL_F16 = "Qwen3-0.6B-q4f16_1-MLC";
+const MODEL_F32 = "Qwen3-0.6B-q4f32_1-MLC";
+// 教室電腦（GTX 1050）不支援 shader-f16，所以固定只用 q4f32。
+// 若換成支援 shader-f16 的電腦，把下面改成 false 即可恢復 q4f16 選項。
+const ONLY_Q4F32 = true;
+const MODEL_CHOICES = ONLY_Q4F32 ? [
+  [MODEL_F32, "Qwen3 0.6B（q4f32，約需 1.9GB 顯示記憶體）"]
+] : [
+  [MODEL_F16, "Qwen3 0.6B（q4f16，約需 1.4GB 顯示記憶體，預設）"],
+  [MODEL_F32, "Qwen3 0.6B（q4f32，約需 1.9GB，沒有 shader-f16 時用）"]
+];
+const PLACEHOLDER = "[由教師填寫]";
+
+// 角色只有三種；人名用組員自己的名字。一個人可以同時有多個角色（例如 Translator + Reviewer）。
+const ROLES = ["PM", "Translator", "Reviewer"];
+// 各角色的定位與職責（學生端「組員與角色」與老師端名單都會顯示）
+const ROLE_INFO = [
+  { key: "PM", name: "專案經理 (PM) / 組長", count: "1 人", pos: "管理與品管", duties: [
+    "確保術語表使用一致。",
+    "負責最終文件檢查與排版。",
+    "主導 AI 輔助品管（例如檢查 AI 翻譯或術語不一致處）。",
+    "擔任對外窗口，向客戶更新狀態、回報問題並交件。"] },
+  { key: "Translator", name: "專業技術譯者 (Translator)", count: "2 人", pos: "產出初稿", duties: [
+    "依術語表將文件譯為目標語言。",
+    "以 AI 工具（MT 或 CAT Tools）產出初稿，再進行人工精修。",
+    "確保語意準確，並符合原文的對話格式。"] },
+  { key: "Reviewer", name: "審校人員 (Reviewer)", count: "1–2 人", pos: "準確性與一致性檢查", duties: [
+    "比對原文與譯文，確認技術準確性。",
+    "檢查譯文是否嚴格遵循術語表。",
+    "修正風格、連貫性及技術錯誤（提出建議或直接修改）。",
+    "建立並維護最終術語表。"] }
+];
+const ROLE_SHORT = { "PM": "PM", "Translator": "T", "Reviewer": "R" };
+const ROLE_DESC = {
+  "PM": "把原文切段、分派給組員，並自訂每一段的流程；最後檢查並繳交最終譯文。可指定組員的角色，也可以維護術語表。只有 PM 可以下載最終譯文。",
+  "Translator": "依 PM 排定的步驟翻譯，或依審校意見修改，再交給下一位。",
+  "Reviewer": "依 PM 排定的步驟審校譯文（不會審到自己翻的），留下意見或送回修改；可以新增本組術語。"
+};
+// 每一段原文的流程是由一串「步驟」組成。第一步一定是翻譯，最後一步一定是 PM 的最終檢查（繳交）。
+const STEP_KINDS = {
+  translate: { label: "翻譯", role: "Translator", short: "翻" },
+  review: { label: "審校", role: "Reviewer", short: "審" },
+  revise: { label: "修改", role: "Translator", short: "改" },
+  final: { label: "最終檢查（PM）", role: "PM", short: "終" }
+};
+const STATUS_LABEL = { active: "進行中", done: "已完成" };
+const EVENT_LABEL = {
+  dispatch: "派發任務", submit: "完成步驟", return: "送回修改", plan_edit: "調整流程", roles_set: "指定組員角色",
+  pm_confirm: "PM 繳交最終譯文", ai_prompt: "向 AI 提問", ai_insert: "插入 AI 內容", glossary_insert: "插入術語",
+  glossary_add: "新增術語", glossary_edit: "修改術語", glossary_delete: "刪除術語", reflection: "繳交反思"
+};
+
+/* ===================== 工具函式 ===================== */
+const $ = (s, r = document) => r.querySelector(s);
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  let pendingValue;
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "value") pendingValue = v;
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (k === "checked" || k === "disabled" || k === "readOnly" || k === "selected" || k === "multiple") el[k] = !!v;
+      else el.setAttribute(k, v === true ? "" : String(v));
+    }
+  }
+  const add = (c) => {
+    if (c === null || c === undefined || c === false) return;
+    if (Array.isArray(c)) { c.forEach(add); return; }
+    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  };
+  kids.forEach(add);
+  if (pendingValue !== undefined) el.value = pendingValue;
+  return el;
+}
+
+function toDate(x) {
+  if (!x) return null;
+  if (typeof x.toDate === "function") return x.toDate();
+  if (x instanceof Date) return x;
+  if (typeof x === "number") return new Date(x);
+  return null;
+}
+const tms = (x) => { const d = toDate(x); return d ? d.getTime() : 0; };
+const recMs = (r) => tms(r.at) || r.clientTime || tms(r.createdAt) || tms(r.updatedAt) || 0;
+const byTime = (a, b) => recMs(a) - recMs(b);
+const p2 = (n) => String(n).padStart(2, "0");
+function fmtFull(ms) {
+  if (!ms) return "";
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+}
+function fmtShort(ms) {
+  if (!ms) return "";
+  const d = new Date(ms);
+  return `${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+}
+
+function toast(msg, kind) {
+  const box = $("#toast");
+  const el = h("div", { class: "toast " + (kind || "") }, msg);
+  box.append(el);
+  setTimeout(() => el.remove(), kind === "bad" ? 7000 : 3500);
+}
+
+// 名單匯入時，「PM」欄有填（PM、是、Y、1、V、O、X）就算 PM
+const isPmCell = (x) => /^(pm|是|y|yes|1|v|✓|o|x)$/i.test(String(x || "").trim());
+
+/* ---------- 把長原文切成一段一段 ---------- */
+function splitSource(text, target) {
+  target = Math.max(30, +target || 150);
+  text = String(text || "").replace(/\r/g, "").trim();
+  if (!text) return [];
+  const pieces = [];
+  text.split(/\n\s*\n+/).map((x) => x.trim()).filter(Boolean).forEach((p) => {
+    if (p.length <= target * 1.5) { pieces.push(p); return; }
+    const sents = p.match(/[^。！？；!?;\n]+[。！？；!?;]*\n?/g) || [p];
+    let cur = "";
+    sents.forEach((x) => { if (cur && (cur + x).length > target) { pieces.push(cur.trim()); cur = x; } else cur += x; });
+    if (cur.trim()) pieces.push(cur.trim());
+  });
+  const out = [];
+  pieces.forEach((p) => {
+    const last = out[out.length - 1];
+    if (last !== undefined && last.length < target * 0.4 && (last + "\n\n" + p).length <= target * 1.5) out[out.length - 1] = last + "\n\n" + p;
+    else out.push(p);
+  });
+  return out;
+}
+// 一分為二：在中間附近最近的句號切開
+function halveSegment(text) {
+  text = String(text || "");
+  if (text.length < 20) return [text];
+  const mid = Math.floor(text.length / 2);
+  let best = -1, dist = 1e9;
+  const re = /[。！？；!?;\n]/g;
+  let m;
+  while ((m = re.exec(text))) { const d = Math.abs(m.index + 1 - mid); if (m.index + 1 < text.length && d < dist) { dist = d; best = m.index + 1; } }
+  if (best < 0) best = mid;
+  return [text.slice(0, best).trim(), text.slice(best).trim()].filter(Boolean);
+}
+
+/* ---------- 流程（步驟清單）檢查 ----------
+   ctx: { translators:[anonId], reviewers:[anonId], pm:anonId, name:(anonId)=>string, from:數字（這個索引之前的步驟已完成，不再檢查） }
+   規則：第一步是翻譯、最後一步是 PM 的最終檢查；每一步的人要有對應角色；審校的人不能是這段翻過或改過的人。 */
+function planProblems(plan, ctx) {
+  const errs = [];
+  const nm = ctx.name || ((a) => a);
+  if (!plan.length) return ["流程是空的"];
+  if (plan[0].kind !== "translate") errs.push("第一步必須是翻譯");
+  if (plan[plan.length - 1].kind !== "final") errs.push("最後一步必須是 PM 的最終檢查");
+  if (plan.filter((x) => x.kind === "final").length > 1 && plan.slice(0, -1).some((x) => x.kind === "final" && !x.done)) errs.push("最終檢查只能放在最後");
+  const authors = new Set(plan.filter((x) => x.kind === "translate" || x.kind === "revise").map((x) => x.anonId).filter(Boolean));
+  plan.forEach((s, i) => {
+    if (i < (ctx.from || 0)) return;
+    const lab = "第 " + (i + 1) + " 步（" + STEP_KINDS[s.kind].label + "）";
+    if (!s.anonId) { errs.push(lab + "還沒有選人"); return; }
+    if (s.kind === "final") { if (s.anonId !== ctx.pm) errs.push(lab + "必須是 PM"); return; }
+    if (s.kind === "review") {
+      if (!ctx.reviewers.includes(s.anonId)) errs.push(lab + "：" + nm(s.anonId) + " 沒有 Reviewer 角色");
+      if (authors.has(s.anonId)) errs.push(lab + "：" + nm(s.anonId) + " 翻譯或修改過這一段，不能審自己的譯文");
+    } else if (!ctx.translators.includes(s.anonId)) errs.push(lab + "：" + nm(s.anonId) + " 沒有 Translator 角色");
+  });
+  return errs;
+}
+
+/* ---------- 文字差異（逐字） ---------- */
+function diffSeq(A, B, limit) {
+  let s = 0;
+  while (s < A.length && s < B.length && A[s] === B[s]) s++;
+  let ea = A.length, eb = B.length;
+  while (ea > s && eb > s && A[ea - 1] === B[eb - 1]) { ea--; eb--; }
+  const a = A.slice(s, ea), b = B.slice(s, eb);
+  const n = a.length, m = b.length;
+  if (limit && n * m > limit) return null;
+  const ops = [];
+  for (let i = 0; i < s; i++) ops.push(["eq", A[i]]);
+  if (n === 0) { for (const x of b) ops.push(["ins", x]); }
+  else if (m === 0) { for (const x of a) ops.push(["del", x]); }
+  else {
+    const w = m + 1;
+    const dp = new Uint32Array((n + 1) * w);
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i * w + j] = a[i] === b[j] ? dp[(i + 1) * w + j + 1] + 1 : Math.max(dp[(i + 1) * w + j], dp[i * w + j + 1]);
+      }
+    }
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+      if (a[i] === b[j]) { ops.push(["eq", a[i]]); i++; j++; }
+      else if (dp[(i + 1) * w + j] >= dp[i * w + j + 1]) { ops.push(["del", a[i]]); i++; }
+      else { ops.push(["ins", b[j]]); j++; }
+    }
+    while (i < n) ops.push(["del", a[i++]]);
+    while (j < m) ops.push(["ins", b[j++]]);
+  }
+  for (let i = ea; i < A.length; i++) ops.push(["eq", A[i]]);
+  return ops;
+}
+function normLang(x) {
+  const v = String(x || "").trim().toLowerCase();
+  if (!v) return "";
+  if (["en", "english", "英", "英文", "英語", "中翻英"].includes(v)) return "en";
+  if (["ja", "jp", "japanese", "日", "日文", "日語", "日本語", "中翻日"].includes(v)) return "ja";
+  if (["de", "german", "deutsch", "德", "德文", "德語", "中翻德"].includes(v)) return "de";
+  return "";
+}
+function langOf(t) { return (t && LANGS[t.lang] && t.lang) || (typeof S !== "undefined" && S.me && LANGS[S.me.lang] && S.me.lang) || "en"; }
+const isLatin = (lang) => !!(LANGS[lang] && LANGS[lang].latin);
+// 拉丁字母語言（英、德）用「字」比對，日文用「字元」比對
+function tokensFor(text, lang) {
+  text = String(text || "");
+  if (isLatin(lang)) return text.match(/\s+|[\p{L}\p{N}'’\-]+|[^\s\p{L}\p{N}]/gu) || [];
+  return Array.from(text);
+}
+function diffText(a, b, lang) {
+  a = a || ""; b = b || "";
+  let ops = diffSeq(tokensFor(a, lang), tokensFor(b, lang), 4000000);
+  if (!ops) {
+    const la = a.split("\n"), lb = b.split("\n");
+    ops = diffSeq(la, lb, 0).map(([t, x]) => [t, x + "\n"]);
+  }
+  const out = [];
+  for (const [t, x] of ops) {
+    const last = out[out.length - 1];
+    if (last && last.t === t) last.s += x; else out.push({ t, s: x });
+  }
+  return out;
+}
+function diffEl(a, b, lang) {
+  const parts = diffText(a, b, lang);
+  if (parts.length === 0) return h("span", { class: "diff" }, "（沒有內容）");
+  if (parts.every((p) => p.t === "eq")) {
+    return h("span", { class: "diff" }, parts.map((p) => p.s), h("div", { class: "hint" }, "兩個版本的文字完全相同。"));
+  }
+  return h("span", { class: "diff" }, parts.map((p) => p.t === "eq" ? p.s : h(p.t === "del" ? "del" : "ins", null, p.s)));
+}
+
+/* ---------- AI 內容與最終文字的相似度（字元 bigram） ---------- */
+function bigrams(s, lang) {
+  const m = new Map();
+  const add = (g) => m.set(g, (m.get(g) || 0) + 1);
+  if (isLatin(lang)) {
+    const w = (String(s || "").toLowerCase().match(/[\p{L}\p{N}]+/gu)) || [];
+    if (w.length < 2) w.forEach(add);
+    else for (let i = 0; i < w.length - 1; i++) add(w[i] + " " + w[i + 1]);
+    return m;
+  }
+  s = String(s || "").replace(/\s+/g, "");
+  for (let i = 0; i < s.length - 1; i++) add(s.slice(i, i + 2));
+  return m;
+}
+function overlapScores(aiText, finalText, lang) {
+  const A = bigrams(aiText, lang), B = bigrams(finalText, lang);
+  let inter = 0, na = 0, nb = 0;
+  A.forEach((v, k) => { na += v; if (B.has(k)) inter += Math.min(v, B.get(k)); });
+  B.forEach((v) => { nb += v; });
+  return {
+    dice: na + nb === 0 ? 0 : (2 * inter) / (na + nb),
+    contained: na === 0 ? 0 : inter / na
+  };
+}
+
+/* ---------- CSV / 下載 ---------- */
+function toCsv(rows, fields) {
+  const esc = (v) => {
+    if (v === null || v === undefined) return "";
+    if (typeof v === "object") v = JSON.stringify(v);
+    v = String(v);
+    return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  };
+  return "﻿" + [fields.join(",")].concat(rows.map((r) => fields.map((f) => esc(r[f])).join(","))).join("\r\n");
+}
+function parseCsv(text) {
+  text = String(text || "").replace(/^﻿/, "");
+  const first = text.split(/\r?\n/)[0] || "";
+  const delim = first.includes("\t") ? "\t" : ",";
+  const rows = [];
+  let row = [], cur = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+      else cur += c;
+    } else if (c === '"') q = true;
+    else if (c === delim) { row.push(cur); cur = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cur); cur = "";
+      if (row.some((x) => x.trim() !== "")) rows.push(row);
+      row = [];
+    } else cur += c;
+  }
+  row.push(cur);
+  if (row.some((x) => x.trim() !== "")) rows.push(row);
+  return rows.map((r) => r.map((x) => x.trim()));
+}
+function download(name, text, mime) {
+  const blob = new Blob([text], { type: (mime || "text/plain") + ";charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+function flatten(rec) {
+  const o = {};
+  for (const [k, v] of Object.entries(rec)) {
+    if (v && typeof v.toDate === "function") o[k] = v.toDate().toISOString();
+    else if (v && typeof v === "object") o[k] = JSON.parse(JSON.stringify(v, (kk, vv) => (vv && typeof vv.toDate === "function" ? vv.toDate().toISOString() : vv)));
+    else o[k] = v;
+  }
+  return o;
+}
+function cleanThink(t) {
+  return String(t || "").replace(/<think>[\s\S]*?<\/think>/g, "").replace(/<think>[\s\S]*$/, "").trim();
+}
+function randId(n) {
+  const c = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let s = "";
+  const a = new Uint32Array(n);
+  crypto.getRandomValues(a);
+  for (let i = 0; i < n; i++) s += c[a[i] % c.length];
+  return s;
+}
+const isConfigured = () => !Object.values(FIREBASE_CONFIG).some((v) => String(v).includes("請填入"));
+
+/* 各角色職責說明卡（學生端、老師端共用）；only 可限制只顯示某幾個角色 */
+function roleDutyBox(only) {
+  const list = ROLE_INFO.filter((r) => !only || only.includes(r.key));
+  return h("details", { class: "duty", open: !!only },
+    h("summary", null, only ? "我的職責" : "各角色的職責（建議人數）"),
+    list.map((r) => h("div", { class: "dutyitem" },
+      h("h3", null, r.name + "　" + r.count + "｜" + r.pos),
+      h("ol", null, r.duties.map((d) => h("li", null, d))))));
+}
+
+/* ===================== 全域狀態與啟動 ===================== */
+const S = {
+  F: null, db: null, auth: null,
+  view: "boot", msg: "", user: null, email: "", isTeacher: false,
+  settings: null, sid: "", sessionName: "", consent: null, me: null,
+  tasks: [], taskId: null, versions: [], events: [], myAi: [], bank: [], glossary: [], gq: "",
+  dr: { taskId: null, text: "", comments: {}, baseKey: "", saved: 0, loaded: false },
+  targets: {}, caret: null, reflection: null, rf: null, showRefl: false,
+  busy: false, unsubs: [], taskUnsubs: [], watched: null, cmpA: "", cmpB: "", dirty: false,
+  agree: false, pmPick: "",
+  members: [], groupRoles: null, seg: null, retTarget: ""
+};
+
+const col = (...p) => S.F.collection(S.db, ...p);
+const dref = (...p) => S.F.doc(S.db, ...p);
+const curTask = () => S.tasks.find((t) => t.id === S.taskId) || null;
+const rosterId = (sid, email) => sid + "~" + email;
+
+/* ---------- 組員與角色 ---------- */
+const memberOf = (anon) => S.members.find((m) => m.anonId === anon) || null;
+const nameOf = (anon) => { const m = memberOf(anon); return m ? (m.name || String(m.email || "").split("@")[0]) : (anon || ""); };
+const pmAnon = () => { const m = S.members.find((x) => x.pm); return m ? m.anonId : ""; };
+const rolesIn = () => ({
+  translators: (S.groupRoles && S.groupRoles.translators) || [],
+  reviewers: (S.groupRoles && S.groupRoles.reviewers) || []
+});
+function rolesOfAnon(anon) {
+  const r = rolesIn(), out = [];
+  const m = memberOf(anon);
+  if (m && m.pm) out.push("PM");
+  if (r.translators.includes(anon)) out.push("Translator");
+  if (r.reviewers.includes(anon)) out.push("Reviewer");
+  return out;
+}
+function recomputeMe() {
+  if (!S.me) return;
+  S.me.roles = rolesOfAnon(S.me.anonId);
+  S.me.roleLabel = S.me.roles.length ? S.me.roles.join(" / ") : "（等 PM 指定角色）";
+  S.me.isPM = !!S.me.pm;
+  S.me.canGloss = S.me.isPM || S.me.roles.includes("Reviewer");
+}
+/* 目前這一步輪到誰、是哪一種 */
+const curStep = (t) => (t && t.status === "active" && t.plan) ? (t.plan[t.stepIdx || 0] || null) : null;
+const stepLabel = (st) => STEP_KINDS[st.kind].label;
+/* 這個人現在以什麼角色在做事（寫進事件與 AI 紀錄） */
+function actingRole(t) {
+  const st = curStep(t);
+  if (st && S.me && st.anonId === S.me.anonId) return STEP_KINDS[st.kind].role;
+  return S.me ? S.me.roleLabel : "";
+}
+
+let rrTimer = 0;
+function rr() {
+  if (rrTimer) return;
+  rrTimer = setTimeout(() => { rrTimer = 0; render(); }, 16);
+}
+
+function friendly(e) {
+  const c = (e && e.code) || "";
+  if (c === "permission-denied" || /insufficient permissions/i.test(e && e.message || "")) return "沒有權限執行這個動作。請確認你在教師名單裡，或請老師檢查 Firestore 安全規則。";
+  if (c === "unavailable" || c === "auth/network-request-failed") return "無法連線到 Firebase，請確認網路後再試。";
+  if (c === "auth/unauthorized-domain") return "這個網址尚未加入 Firebase 的「授權網域」，請管理員到 Authentication → 設定 → 授權網域加入。";
+  if (c === "auth/operation-not-allowed") return "Firebase 尚未啟用 Google 登入，請管理員到 Authentication → Sign-in method 啟用。";
+  if (c === "failed-precondition") return "資料庫查詢需要建立索引，或資料庫尚未建立。請管理員查看瀏覽器主控台的訊息。";
+  return (e && e.message) ? String(e.message) : "發生未知的錯誤";
+}
+function showError(e) {
+  console.error(e);
+  S.view = "error";
+  S.msg = friendly(e);
+  rr();
+}
+async function act(fn, okMsg) {
+  if (S.busy) return;
+  S.busy = true;
+  rr();
+  try {
+    const r = await fn();
+    if (okMsg) toast(okMsg, "ok");
+    return r;
+  } catch (e) {
+    console.error(e);
+    toast(friendly(e), "bad");
+  } finally {
+    S.busy = false;
+    rr();
+  }
+}
+
+function cleanup() {
+  S.unsubs.forEach((u) => { try { u(); } catch (e) {} });
+  S.taskUnsubs.forEach((u) => { try { u(); } catch (e) {} });
+  S.unsubs = []; S.taskUnsubs = [];
+  Object.assign(S, {
+    settings: null, sid: "", sessionName: "", consent: null, me: null, tasks: [], taskId: null,
+    versions: [], events: [], myAi: [], bank: [], glossary: [], watched: null, reflection: null, members: [], groupRoles: null, seg: null, retTarget: "", showRoles: undefined, rolesEd: null, pe: null, pendingPick: "", gedit: null,
+    rf: null, showRefl: false, dirty: false, agree: false, isTeacher: false, T: null
+  });
+  S.dr = { taskId: null, text: "", comments: {}, baseKey: "", saved: 0, loaded: false };
+}
+
+async function boot() {
+  window.addEventListener("hashchange", () => location.reload());
+  document.addEventListener("visibilitychange", () => { if (document.hidden && S.dirty) saveDraftNow(); });
+  window.addEventListener("beforeunload", (e) => {
+    const pendingRefl = S.view === "student" && allDone() && !S.reflection;
+    if (pendingRefl || S.dirty) { e.preventDefault(); e.returnValue = ""; }
+  });
+  if (location.hash === "#prep") { S.view = "prep"; render(); prepInit(); return; }
+  if (!isConfigured()) { S.view = "setup"; render(); return; }
+  try {
+    const [a, b, c] = await Promise.all([import(FB_URLS.app), import(FB_URLS.auth), import(FB_URLS.fs)]);
+    S.F = Object.assign({}, a, b, c);
+  } catch (e) {
+    console.error(e);
+    S.view = "error";
+    S.msg = "無法載入 Firebase 程式庫。請確認這台電腦可以連到網路（www.gstatic.com）。";
+    render();
+    return;
+  }
+  try {
+    const app = S.F.initializeApp(FIREBASE_CONFIG);
+    S.auth = S.F.getAuth(app);
+    S.db = S.F.getFirestore(app);
+    S.F.onAuthStateChanged(S.auth, (u) => { handleAuth(u); });
+  } catch (e) { showError(e); }
+}
+
+async function handleAuth(user) {
+  cleanup();
+  if (!user) { S.user = null; S.email = ""; S.view = "login"; rr(); return; }
+  S.user = user;
+  S.email = (user.email || "").toLowerCase();
+  S.view = "loading";
+  rr();
+  try {
+    S.isTeacher = TEACHER_EMAILS.map((x) => x.toLowerCase()).includes(S.email);
+    const sSnap = await S.F.getDoc(dref("settings", "app"));
+    S.settings = sSnap.exists() ? sSnap.data() : null;
+    if (S.isTeacher) { await startTeacher(); return; }
+    if (!S.settings || !S.settings.activeSessionId) { S.view = "nosession"; rr(); return; }
+    S.sid = S.settings.activeSessionId;
+    const sess = await S.F.getDoc(dref("sessions", S.sid));
+    S.sessionName = sess.exists() ? (sess.data().name || "") : "";
+    await enterStudent();
+  } catch (e) { showError(e); }
+}
+
+async function enterStudent() {
+  let r = null;
+  try {
+    const rs = await S.F.getDoc(dref("roster", rosterId(S.sid, S.email)));
+    r = rs.exists() ? rs.data() : null;
+  } catch (e) { if (e.code !== "permission-denied") throw e; }
+  if (!r) { S.view = "noroster"; rr(); return; }
+  S.me = r;
+  S.me.lang = normLang(r.lang) || "en";
+  try {
+    const rf = await S.F.getDoc(dref("reflections", rosterId(S.sid, S.email)));
+    S.reflection = rf.exists() ? rf.data() : null;
+  } catch (e) { S.reflection = null; }
+  recomputeMe();
+  subscribeMembers();
+  subscribeGlossary();
+  if (S.me.pm) loadBank();
+  subscribeTasks();
+  S.view = "student";
+  rr();
+  aiInit();
+}
+
+function subscribeMembers() {
+  const base = [S.F.where("sessionId", "==", S.sid), S.F.where("groupId", "==", S.me.groupId)];
+  S.unsubs.push(S.F.onSnapshot(S.F.query(col("roster"), ...base), (snap) => {
+    S.members = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email), "zh"));
+    if (!S.me) return;
+    const mine = S.members.find((m) => m.anonId === S.me.anonId);
+    if (mine) { S.me.name = mine.name || ""; S.me.pm = !!mine.pm; }
+    recomputeMe(); rr();
+  }, (e) => console.error(e)));
+  S.unsubs.push(S.F.onSnapshot(dref("groupRoles", S.sid + "~" + S.me.groupId), (snap) => {
+    if (!S.me) return;
+    S.groupRoles = snap.exists() ? snap.data() : null;
+    recomputeMe(); rr();
+  }, (e) => console.error(e)));
+}
+
+function subscribeGlossary() {
+  const q = S.F.query(col("groupGlossary"), S.F.where("sessionId", "==", S.sid), S.F.where("groupId", "==", S.me.groupId));
+  S.unsubs.push(S.F.onSnapshot(q, (snap) => {
+    S.glossary = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(a.src).localeCompare(String(b.src), "zh"));
+    rr();
+  }, (e) => console.error(e)));
+}
+async function loadBank() {
+  try {
+    const q = S.F.query(col("bank"), S.F.where("sessionId", "==", S.sid), S.F.where("released", "==", true));
+    const snap = await S.F.getDocs(q);
+    S.bank = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(a.title).localeCompare(String(b.title)));
+    rr();
+  } catch (e) { console.error(e); toast("讀取題庫失敗：" + friendly(e), "bad"); }
+}
+
+function subscribeTasks() {
+  const q = S.F.query(col("tasks"), S.F.where("sessionId", "==", S.sid), S.F.where("groupId", "==", S.me.groupId));
+  S.unsubs.push(S.F.onSnapshot(q, (snap) => {
+    if (!S.me) return;
+    // 舊版格式的任務（沒有 plan 流程）無法在新版使用，直接略過，避免畫面出錯
+    S.tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => Array.isArray(t.plan) && t.plan.length).sort((a, b) => byTime(a, b) || String(a.code).localeCompare(String(b.code)));
+    if (S.pendingPick && S.tasks.find((t) => t.id === S.pendingPick)) { S.taskId = S.pendingPick; S.pendingPick = ""; }
+    if (!S.taskId || !S.tasks.find((t) => t.id === S.taskId)) {
+      // 一開始先顯示「現在輪到我」的那一段；沒有的話顯示最後一段
+      const mine = S.tasks.find((t) => { const st = curStep(t); return st && S.me && st.anonId === S.me.anonId; });
+      S.taskId = mine ? mine.id : (S.tasks.length ? S.tasks[S.tasks.length - 1].id : null);
+    }
+    watchTask();
+    rr();
+  }, (e) => showError(e)));
+}
+
+function watchTask() {
+  if (S.watched === S.taskId) return;
+  S.taskUnsubs.forEach((u) => { try { u(); } catch (e) {} });
+  S.taskUnsubs = [];
+  S.watched = S.taskId;
+  S.versions = []; S.events = []; S.myAi = [];
+  S.dr = { taskId: S.taskId, text: "", comments: {}, baseKey: "", saved: 0, loaded: false };
+  S.cmpA = ""; S.cmpB = ""; S.retTarget = ""; S.pe = null;
+  if (!S.taskId) return;
+  const tid = S.taskId;
+  S.taskUnsubs.push(S.F.onSnapshot(S.F.collection(S.db, "tasks", tid, "versions"), (snap) => {
+    S.versions = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(byTime);
+    rr();
+  }, (e) => console.error(e)));
+  S.taskUnsubs.push(S.F.onSnapshot(
+    S.F.query(col("events"), S.F.where("sessionId", "==", S.sid), S.F.where("groupId", "==", S.me.groupId), S.F.where("taskId", "==", tid)),
+    (snap) => { S.events = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(byTime); rr(); },
+    (e) => console.error(e)));
+  S.taskUnsubs.push(S.F.onSnapshot(
+    S.F.query(col("aiLogs"), S.F.where("sessionId", "==", S.sid), S.F.where("anonId", "==", S.me.anonId), S.F.where("taskId", "==", tid)),
+    (snap) => { S.myAi = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(byTime); rr(); },
+    (e) => console.error(e)));
+  loadDraft(tid);
+}
+
+/* ---------- 草稿（只存最新一份，不保留逐次輸入歷程） ---------- */
+const draftId = (tid) => tid + "~" + S.me.anonId;
+async function loadDraft(tid) {
+  try {
+    const d = await S.F.getDoc(dref("drafts", draftId(tid)));
+    if (S.taskId !== tid) return;
+    if (d.exists()) {
+      const x = d.data();
+      S.dr = { taskId: tid, text: x.text || "", comments: x.comments || {}, baseKey: x.baseKey || "", openedAt: x.openedAt || null, saved: tms(x.updatedAt) || x.clientTime || 0, loaded: true };
+    } else S.dr.loaded = true;
+  } catch (e) { S.dr.loaded = true; console.error(e); }
+  rr();
+}
+/* 為了節省 Firestore 的每日寫入額度：草稿最多每 10 秒存一次（不是每次停頓都存），
+   內容沒變就不寫；切換分頁、提交前會立刻存。 */
+const DRAFT_SAVE_MS = 10000;
+let saveTimer = 0;
+function scheduleSave() {
+  S.dirty = true;
+  if (saveTimer) return;
+  saveTimer = setTimeout(saveDraftNow, DRAFT_SAVE_MS);
+}
+const draftSig = () => S.dr.text + "\u0001" + JSON.stringify(S.dr.comments || {});
+async function saveDraftNow() {
+  clearTimeout(saveTimer); saveTimer = 0;
+  const t = curTask();
+  if (!t || !S.me || !S.dr.loaded) return;
+  if (S.dr.sig === draftSig()) { S.dirty = false; return; }
+  try {
+    const sig = draftSig();
+    await S.F.setDoc(dref("drafts", draftId(t.id)), {
+      taskId: t.id, sessionId: S.sid, groupId: S.me.groupId, anonId: S.me.anonId, role: S.me.roleLabel,
+      text: S.dr.text, comments: S.dr.comments, baseKey: S.dr.baseKey, openedAt: S.dr.openedAt || null,
+      updatedAt: S.F.serverTimestamp(), clientTime: Date.now()
+    });
+    S.dr.saved = Date.now();
+    S.dr.sig = sig;
+    S.dirty = !!saveTimer;
+  } catch (e) { console.error(e); toast("草稿儲存失敗：" + friendly(e), "bad"); }
+  updateSavedLabel();
+}
+function updateSavedLabel() {
+  const c = document.getElementById("cnt");
+  if (c) c.textContent = S.dr.text.length + " 字" + (S.dr.saved ? "　草稿已儲存 " + fmtShort(S.dr.saved).slice(6) : "");
+}
+
+/* ---------- 事件紀錄 ---------- */
+function evBase(task, type, extra) {
+  return Object.assign({
+    type, taskId: task.id, taskCode: task.code, sessionId: S.sid, groupId: S.me.groupId, lang: langOf(task),
+    anonId: S.me.anonId, indTaskId: task.code + "-" + S.me.anonId, role: task.id ? actingRole(task.plan ? task : S.tasks.find((x) => x.id === task.id)) : S.me.roleLabel,
+    at: S.F.serverTimestamp(), clientTime: Date.now()
+  }, extra || {});
+}
+async function logEvent(task, type, extra) {
+  await S.F.addDoc(col("events"), evBase(task, type, extra));
+}
+
+/* ---------- 登入 / 登出 ---------- */
+async function doLogin() {
+  try {
+    const prov = new S.F.GoogleAuthProvider();
+    const params = { prompt: "select_account" };
+    if (GOOGLE_DOMAIN_HINT) params.hd = GOOGLE_DOMAIN_HINT;
+    prov.setCustomParameters(params);
+    await S.F.signInWithPopup(S.auth, prov);
+  } catch (e) {
+    const c = e && e.code;
+    if (c === "auth/popup-blocked" || c === "auth/operation-not-supported-in-this-environment") {
+      try { await S.F.signInWithRedirect(S.auth, new S.F.GoogleAuthProvider()); } catch (e2) { toast("登入失敗：" + friendly(e2), "bad"); }
+    } else if (c === "auth/popup-closed-by-user" || c === "auth/cancelled-popup-request") { /* 使用者取消 */ }
+    else toast("登入失敗：" + friendly(e), "bad");
+  }
+}
+async function doLogout() {
+  await saveDraftNow();
+  await S.F.signOut(S.auth);
+}
+
+/* ---------- 畫面切換 ---------- */
+function render() {
+  const root = $("#app");
+  const ae = document.activeElement;
+  const keep = ae && ae.id ? { id: ae.id, s: ae.selectionStart, e: ae.selectionEnd, st: ae.scrollTop } : null;
+  const sy = window.scrollY;
+  const keeps = {};
+  document.querySelectorAll("[data-keep]").forEach((el) => {
+    if (el.id) keeps[el.id] = { top: el.scrollTop, bottom: el.scrollTop + el.clientHeight >= el.scrollHeight - 8 };
+  });
+  let node;
+  try {
+    switch (S.view) {
+      case "setup": node = viewSetup(); break;
+      case "error": node = viewError(); break;
+      case "login": node = viewLogin(); break;
+      case "noroster": node = viewNoRoster(); break;
+      case "nosession": node = viewNoSession(); break;
+      case "student": node = !S.me ? h("div", { class: "narrow" }, h("div", { class: "card" }, h("p", null, "載入中…"))) : S.showRefl ? viewReflection() : viewStudent(); break;
+      case "teacher": node = viewTeacher(); break;
+      case "prep": node = viewPrep(); break;
+      default: node = h("div", { class: "narrow" }, h("div", { class: "card" }, h("p", null, "載入中…")));
+    }
+  } catch (e) {
+    console.error(e);
+    node = h("div", { class: "narrow" }, h("div", { class: "card bad" }, h("h2", null, "畫面發生錯誤"), h("p", null, String(e && e.message || e))));
+  }
+  S.rendering = true;
+  try { root.replaceChildren(node); } finally { S.rendering = false; }
+  if (keep) {
+    const el = document.getElementById(keep.id);
+    if (el) {
+      el.focus({ preventScroll: true });
+      try { if (keep.s != null) el.setSelectionRange(keep.s, keep.e); } catch (e) {}
+      el.scrollTop = keep.st;
+    }
+  }
+  document.querySelectorAll("[data-keep]").forEach((el) => {
+    const k = keeps[el.id];
+    if (el.id === "ai-scroll") el.scrollTop = (!k || k.bottom) ? el.scrollHeight : k.top;
+    else if (k) el.scrollTop = k.top;
+  });
+  window.scrollTo(0, sy);
+}
+
+/* ---------- 共用畫面 ---------- */
+function shell(...kids) { return h("div", { class: "narrow" }, h("h1", null, "翻譯實作儀表板"), ...kids); }
+
+function viewSetup() {
+  return shell(h("div", { class: "card warn" },
+    h("h2", null, "還沒有設定 Firebase"),
+    h("p", null, "請用文字編輯器打開這個 HTML 檔，找到最上方的「設定區」，把 FIREBASE_CONFIG 的每一欄換成你的 Firebase 專案設定，再把 TEACHER_EMAILS 換成教師的 Google 帳號。"),
+    h("p", { class: "sub" }, "詳細步驟請看 SETUP.md。")),
+    h("div", { class: "card" }, h("h2", null, "考試前的 AI 準備頁"),
+      h("p", { class: "sub" }, "不需要 Firebase 也可以先檢查這台電腦能不能跑 AI。"),
+      h("div", { class: "btns" }, h("a", { href: "#prep" }, h("button", { class: "ghost" }, "開啟 AI 準備頁")))));
+}
+function viewError() {
+  return shell(h("div", { class: "card bad" }, h("h2", null, "發生問題"), h("p", null, S.msg),
+    h("div", { class: "btns" }, h("button", { onclick: () => location.reload() }, "重新整理"),
+      S.user ? h("button", { class: "plain", onclick: doLogout }, "登出") : null)));
+}
+function viewLogin() {
+  return shell(
+    h("div", { class: "card" },
+      h("h2", null, "登入"),
+      h("p", { class: "sub" }, "請使用學校的 Google 帳號登入。登入後，系統會依教師的名單帶出你的組別。角色由你們的 PM 在組內指定。"),
+      h("div", { class: "btns" }, h("button", { onclick: doLogin }, "使用 Google 帳號登入"))),
+    h("div", { class: "card" },
+      h("h3", null, "考試前準備"),
+      h("p", { class: "sub" }, "管理員或老師可以先在每台電腦檢查並下載離線 AI 模型，不需要登入。"),
+      h("div", { class: "btns" }, h("a", { href: "#prep" }, h("button", { class: "ghost" }, "開啟 AI 準備頁")))));
+}
+function viewNoSession() {
+  return shell(h("div", { class: "card warn" }, h("h2", null, "老師還沒有開啟場次"),
+    h("p", null, "目前沒有進行中的實作場次。請等老師開啟後再重新整理。"),
+    h("div", { class: "btns" }, h("button", { onclick: () => location.reload() }, "重新整理"), h("button", { class: "plain", onclick: doLogout }, "登出"))));
+}
+function viewNoRoster() {
+  return shell(h("div", { class: "card warn" }, h("h2", null, "你還不在這個場次的名單裡"),
+    h("p", null, "你登入的帳號是 " + S.email + "。請告訴老師這個帳號，請老師把你加入名單與組別。"),
+    h("div", { class: "btns" }, h("button", { onclick: () => location.reload() }, "重新整理"), h("button", { class: "plain", onclick: doLogout }, "換一個帳號"))));
+}
+
+/* ===================== 離線 AI（WebLLM，在瀏覽器內執行） ===================== */
+const AI = {
+  webllm: null, engine: null, status: "idle", pct: 0, text: "", modelId: "", selected: MODEL_F32,
+  busy: false, env: null, live: "", liveFor: null, stop: false,
+  conv: null, convTried: false, cached: false,
+  test: { state: "idle", out: "", sec: 0, ok: false }, prepLang: "en"
+};
+const aiInstr = (lang) => "請把下列中文翻譯成" + LANGS[lang].name + "，只輸出譯文：";
+const sysFree = (lang) => "你是「半導體小助手」，在翻譯課裡協助學生。學生正在把中文原文翻成" + LANGS[lang].name + "。你可以回答兩類問題：一是半導體相關的知識（製程、設備、材料、封裝、名詞解釋、產業常識），二是翻譯問題（某個詞或某句話怎麼翻成" + LANGS[lang].name + "）。回答規則：請用繁體中文（台灣用語），絕對不可以使用簡體字；回答簡短，通常三到五句話；不確定的事就直接說不確定，不要編造數字、公司名稱或例句；如果提供了「本組術語表」，術語翻譯一律照術語表，不要自己另創譯法；提到外文詞時請附上原文。";
+// 從本組術語表挑出和這段文字有關的詞條，放進提示詞，小模型不認識的專業詞才不會亂猜
+const glossHits = (text) => (S.glossary || []).filter((g) => g.src && String(text || "").includes(g.src)).slice(0, 20);
+const glossLines = (hits) => hits.map((g) => g.src + " = " + g.tgt).join("\n");
+const hasKana = (t) => /[\u3040-\u30ff]/.test(t);
+
+async function aiEnvCheck() {
+  const ua = navigator.userAgent;
+  const m = ua.match(/(Edg|Chrome)\/(\d+)/);
+  const env = {
+    browserName: m ? (m[1] === "Edg" ? "Edge" : "Chrome") : "其他瀏覽器",
+    ver: m ? parseInt(m[2], 10) : 0,
+    secure: !!window.isSecureContext,
+    webgpu: !!navigator.gpu, adapter: false, gpuName: "", f16: false, maxMB: 0
+  };
+  env.browserOk = !!m && env.ver >= 113;
+  if (navigator.gpu) {
+    try {
+      const ad = await navigator.gpu.requestAdapter();
+      if (ad) {
+        env.adapter = true;
+        let info = ad.info || null;
+        if (!info && ad.requestAdapterInfo) { try { info = await ad.requestAdapterInfo(); } catch (e) {} }
+        env.gpuName = info ? [info.vendor, info.architecture, info.description].filter(Boolean).join(" / ") : "";
+        env.integrated = /intel/i.test(env.gpuName) && !/nvidia|amd/i.test(env.gpuName);
+        env.f16 = !!(ad.features && ad.features.has("shader-f16"));
+        env.maxMB = ad.limits ? Math.round(ad.limits.maxBufferSize / 1048576) : 0;
+      }
+    } catch (e) {}
+  }
+  return env;
+}
+async function ensureWebllm() {
+  if (!AI.webllm) AI.webllm = await import(WEBLLM_URL);
+  return AI.webllm;
+}
+async function ensureConverter() {
+  if (AI.conv || AI.convTried) return;
+  AI.convTried = true;
+  try {
+    const mod = await import(OPENCC_URL);
+    const OpenCC = mod.default || mod;
+    AI.conv = OpenCC.Converter({ from: "cn", to: "twp" });
+  } catch (e) { AI.conv = null; console.error("簡轉繁工具載入失敗", e); }
+}
+const toTW = (t) => { if (!AI.conv) return t; try { return AI.conv(t); } catch (e) { return t; } };
+
+async function aiInit() {
+  if (AI.env) return;
+  AI.env = await aiEnvCheck();
+  AI.selected = defaultModel();
+  rr();
+  if (!AI.env.webgpu || !AI.env.adapter) return;
+  try {
+    await ensureWebllm();
+    AI.cached = await AI.webllm.hasModelInCache(AI.selected);
+  } catch (e) { AI.cached = false; }
+  rr();
+  if (AI.cached && AI.status === "idle") aiLoad(AI.selected);
+}
+function aiProgressUpdate() {
+  const b = document.getElementById("ai-bar"); if (b) b.style.width = AI.pct + "%";
+  const t = document.getElementById("ai-status"); if (t) t.textContent = AI.text;
+}
+function aiLiveUpdate() {
+  const el = document.getElementById("ai-live");
+  if (el) el.textContent = AI.live || "（模型思考中…）";
+}
+const MODEL_PREF_KEY = "aiModelPref";
+const savedModel = () => { try { const v = localStorage.getItem(MODEL_PREF_KEY); return MODEL_CHOICES.some((m) => m[0] === v) ? v : ""; } catch (e) { return ""; } };
+const rememberModel = (id) => { try { localStorage.setItem(MODEL_PREF_KEY, id); } catch (e) {} };
+const defaultModel = () => savedModel() || (!ONLY_Q4F32 && AI.env && AI.env.f16 ? MODEL_F16 : MODEL_F32);
+const isShaderError = (msg) => /ShaderModule|shader|compute stage|validat|f16|float16/i.test(msg) && !/device.*(lost|removed|hung)|DXGI/i.test(msg);
+
+async function aiLoadOnce(id) {
+  if (AI.engine && AI.modelId !== id) { try { await AI.engine.unload(); } catch (e) {} AI.engine = null; }
+  if (!AI.engine) {
+    AI.text = "開始載入 " + id; rr();
+    AI.engine = await AI.webllm.CreateMLCEngine(id, {
+      initProgressCallback: (r) => { AI.pct = Math.round((r.progress || 0) * 100); AI.text = r.text || ""; aiProgressUpdate(); }
+    });
+  }
+  AI.modelId = id; AI.selected = id; AI.status = "ready"; AI.pct = 100; AI.text = "已載入：" + id;
+  rememberModel(id);
+}
+async function aiLoad(id) {
+  if (AI.status === "loading") return;
+  AI.status = "loading"; AI.pct = 0; AI.text = "載入函式庫…"; rr();
+  try {
+    await ensureWebllm();
+    await ensureConverter();
+    try {
+      await aiLoadOnce(id);
+    } catch (e1) {
+      const m1 = String(e1 && e1.message ? e1.message : e1);
+      // q4f16 在有些電腦（驅動或顯示卡不完整支援 shader-f16）會編譯失敗，自動改用 q4f32，並記住這台電腦要用 q4f32
+      if (id === MODEL_F16 && isShaderError(m1)) {
+        AI.engine = null; AI.pct = 0; AI.text = "這台電腦不支援 q4f16，自動改用 q4f32…"; rr();
+        await aiLoadOnce(MODEL_F32);
+      } else throw e1;
+    }
+  } catch (e) {
+    AI.engine = null; AI.status = "error";
+    const msg = String(e && e.message ? e.message : e);
+    AI.text = /device.*(lost|removed|hung)|DXGI|insufficient memory/i.test(msg)
+      ? "顯示卡發生錯誤（可能是當機或記憶體不足）。請把瀏覽器完全關閉再重開，並確認瀏覽器用的是獨立顯示卡（NVIDIA），不是內建的 Intel 顯示卡。原始訊息：" + msg
+      : "載入失敗：" + msg;
+  }
+  rr();
+}
+
+/* 產生回應。回傳 { response, original, converted, seconds, tokens, finish } */
+async function aiGenerate(userPrompt, mode, lang, hits) {
+  lang = LANGS[lang] ? lang : "en";
+  hits = hits || [];
+  if (AI.status !== "ready" || !AI.engine) throw new Error("AI 尚未載入");
+  if (mode === "free") await ensureConverter();
+  let sysText = mode === "translate" ? LANGS[lang].sys : sysFree(lang);
+  if (hits.length) sysText += mode === "translate"
+    ? "\n\nGlossary (use these exact terms 中文 = target):\n" + glossLines(hits)
+    : "\n\n本組術語表（中文 = " + LANGS[lang].name + "）：\n" + glossLines(hits);
+  const messages = [{ role: "system", content: sysText }];
+  if (mode === "translate") {
+    messages.push({ role: "user", content: aiInstr(lang) + "\n\n" + FEW_SRC });
+    messages.push({ role: "assistant", content: LANGS[lang].fewOut });
+  }
+  // 簡轉繁只用在中文回答（自由提問）。翻譯結果是外文，不能轉換，日文的漢字更不能被轉成中文寫法。
+  const conv = (t) => (mode === "free" && !hasKana(t)) ? toTW(t) : t;
+  messages.push({ role: "user", content: userPrompt });
+  const req = { messages, temperature: 0.2, max_tokens: 768, stream: true, stream_options: { include_usage: true } };
+  if (AI.modelId.startsWith("Qwen3")) req.extra_body = { enable_thinking: false };
+  const t0 = performance.now();
+  let raw = "", usage = null, finish = "", n = 0;
+  const chunks = await AI.engine.chat.completions.create(req);
+  for await (const c of chunks) {
+    if (AI.stop) { try { AI.engine.interruptGenerate(); } catch (e) {} break; }
+    n++;
+    const ch = c.choices && c.choices[0];
+    if (ch && ch.finish_reason) finish = ch.finish_reason;
+    const d = ch && ch.delta && ch.delta.content;
+    if (d) { raw += d; AI.live = conv(cleanThink(raw)); aiLiveUpdate(); }
+    if (c.usage) usage = c.usage;
+  }
+  const seconds = Number(((performance.now() - t0) / 1000).toFixed(2));
+  const original = cleanThink(raw);
+  const response = conv(original);
+  if (raw === "") throw new Error("模型沒有產生任何文字（收到 " + n + " 個片段，結束原因：" + (finish || "無") + "）。請重新載入頁面再試。");
+  if (original === "") throw new Error("模型只輸出了思考內容，沒有譯文。請換個說法再問一次。");
+  return { response, original, converted: response !== original, seconds, tokens: usage ? usage.completion_tokens : null, finish };
+}
+
+/* ---------- 學生端：送出提問並記錄 ---------- */
+async function aiSend(mode) {
+  const t = curTask();
+  if (!t || AI.busy || AI.status !== "ready") return;
+  const lang = langOf(t);
+  const prompt = mode === "translate" ? aiInstr(lang) + "\n\n" + t.sourceText : (S.aiPrompt || "").trim();
+  if (!prompt) { toast("請先輸入要問 AI 的內容", "bad"); return; }
+  AI.busy = true; AI.live = ""; AI.liveFor = t.id; AI.stop = false; rr();
+  try {
+    const hits = glossHits(mode === "translate" ? t.sourceText : prompt);
+    const r = await aiGenerate(prompt, mode, lang, hits);
+    const doc = {
+      taskId: t.id, taskCode: t.code, sessionId: S.sid, groupId: S.me.groupId, anonId: S.me.anonId,
+      indTaskId: t.code + "-" + S.me.anonId, role: actingRole(t), lang, glossaryHits: hits.map((g) => g.src + " = " + g.tgt), model: AI.modelId, mode, prompt,
+      response: r.response, modelOriginal: r.original, convertedToTraditional: r.converted,
+      seconds: r.seconds, completionTokens: r.tokens, finishReason: r.finish,
+      at: S.F.serverTimestamp(), clientTime: Date.now()
+    };
+    let saved = false;
+    for (let i = 0; i < 2 && !saved; i++) {
+      try { await S.F.addDoc(col("aiLogs"), doc); saved = true; } catch (e) { if (i === 1) throw e; }
+    }
+    try { await logEvent(t, "ai_prompt", { detail: mode }); } catch (e) { console.error(e); }
+    if (mode === "free") S.aiPrompt = "";
+  } catch (e) {
+    console.error(e);
+    toast("AI 發生問題：" + friendly(e), "bad");
+  } finally {
+    AI.busy = false; AI.live = ""; rr();
+  }
+}
+
+/* ---------- AI 準備頁（不需要登入） ---------- */
+async function prepInit() {
+  AI.env = await aiEnvCheck();
+  AI.selected = defaultModel();
+  rr();
+  if (AI.env.webgpu && AI.env.adapter) {
+    try { await ensureWebllm(); AI.cached = await AI.webllm.hasModelInCache(AI.selected); } catch (e) { AI.cached = false; }
+    rr();
+  }
+}
+async function prepTest() {
+  if (AI.status !== "ready") return;
+  AI.test = { state: "running", out: "", sec: 0, ok: false }; rr();
+  try {
+    const lang = AI.prepLang;
+    const r = await aiGenerate(aiInstr(lang) + "\n\n" + LANGS[lang].test, "translate", lang);
+    const ok = LANGS[lang].check.test(r.response);
+    AI.test = { state: "done", out: r.response, sec: r.seconds, ok };
+    try { if (ok) localStorage.setItem("aiReady", JSON.stringify({ model: AI.modelId, at: Date.now() })); } catch (e) {}
+  } catch (e) { AI.test = { state: "fail", out: String(e && e.message || e), sec: 0, ok: false }; }
+  AI.live = ""; rr();
+}
+function envRows(env) {
+  if (!env) return [h("p", { class: "sub" }, "檢查中…")];
+  const rows = [];
+  const add = (label, hint, value, kind) => rows.push(h("div", { class: "row" },
+    h("div", { class: "l" }, h("span", null, label), h("small", null, hint)), h("span", { class: "badge " + (kind || "") }, value)));
+  add("瀏覽器", "需要 Chrome 或 Edge 113 以上", env.browserName + " " + env.ver, env.browserOk ? "ok" : "bad");
+  add("安全環境", "需要 https 或 localhost，模型才能存進瀏覽器", env.secure ? "是" : "否", env.secure ? "ok" : "warn");
+  add("WebGPU", "沒有 WebGPU 就無法在瀏覽器裡跑模型", env.webgpu && env.adapter ? "支援" : "不支援", env.webgpu && env.adapter ? "ok" : "bad");
+  if (env.adapter) {
+    add("顯示卡", "瀏覽器回報的資訊", env.gpuName || "（瀏覽器未提供）", env.integrated ? "warn" : "");
+    if (env.integrated) rows.push(h("div", { class: "card warn" }, h("p", null, "瀏覽器現在用的是 Intel 內建顯示卡，載入模型很容易當機。請到 Windows 設定 → 系統 → 顯示 → 圖形，把 Chrome 或 Edge 設成「高效能」，再把瀏覽器完全關閉重開。成功的話，這一列會變成 nvidia。")));
+    add("shader-f16", "有的話用 q4f16 版本（較省記憶體）；沒有就要用 q4f32 版本", env.f16 ? "支援" : "不支援", env.f16 ? "ok" : "warn");
+    add("單一緩衝區上限", "不等於顯示記憶體總量", env.maxMB + " MB", env.maxMB >= 1024 ? "ok" : "warn");
+    add("顯示記憶體總量", "瀏覽器無法查詢，請在工作管理員的效能頁看「專用 GPU 記憶體」。0.6B 模型約需 1.4GB", "請手動確認", "warn");
+  }
+  return rows;
+}
+function viewPrep() {
+  const env = AI.env;
+  const ready = AI.status === "ready" && AI.test.ok;
+  return h("div", { class: "narrow" },
+    h("h1", null, "AI 準備頁"),
+    h("p", { class: "sub" }, "考試前由老師或管理員在每台電腦開一次。第一次需要連網下載模型，之後會存在這個瀏覽器裡。學生考試時不需要用這一頁。"),
+    h("div", { class: "card" }, h("h2", null, "步驟 1　檢查這台電腦"), envRows(env)),
+    h("div", { class: "card" },
+      h("h2", null, "步驟 2　載入模型"),
+      h("label", { for: "prep-model" }, "模型"),
+      h("select", { id: "prep-model", value: AI.selected, onchange: (e) => { AI.selected = e.target.value; rr(); } },
+        MODEL_CHOICES.map(([v, t]) => h("option", { value: v }, t))),
+      AI.cached ? h("p", { class: "hint" }, "這個模型已經存在這個瀏覽器的快取裡，載入會很快。") : null,
+      h("div", { class: "btns" }, h("button", { disabled: AI.status === "loading" || !(env && env.webgpu && env.adapter), onclick: () => aiLoad(AI.selected) }, AI.status === "ready" ? "重新載入" : "下載並載入模型")),
+      h("div", { class: "bar" }, h("div", { id: "ai-bar", style: "width:" + AI.pct + "%" })),
+      h("div", { class: "mono", id: "ai-status" }, AI.text || "尚未載入")),
+    h("div", { class: "card" },
+      h("h2", null, "步驟 3　測試翻譯"),
+      h("label", { for: "prep-lang" }, "要測試的目標語言（原文是中文）"),
+      h("select", { id: "prep-lang", value: AI.prepLang, onchange: (e) => { AI.prepLang = e.target.value; AI.test = { state: "idle", out: "", sec: 0, ok: false }; rr(); } },
+        LANG_KEYS.map((k) => h("option", { value: k }, LANGS[k].short))),
+      h("div", { class: "src" }, LANGS[AI.prepLang].test),
+      h("div", { class: "btns" }, h("button", { disabled: AI.status !== "ready" || AI.test.state === "running", onclick: prepTest }, AI.test.state === "running" ? "翻譯中…" : "測試翻譯")),
+      AI.test.state === "running" ? h("div", { class: "out", id: "ai-live" }, AI.live || "（模型思考中…）") : null,
+      AI.test.state === "done" ? h("div", { class: "out" }, AI.test.out) : null,
+      AI.test.state === "done" ? h("p", { class: "hint" }, "耗時 " + AI.test.sec + " 秒。請看譯文是否合理；小模型可能譯錯。") : null,
+      AI.test.state === "fail" ? h("div", { class: "card bad" }, AI.test.out) : null),
+    h("div", { class: "card " + (ready ? "ok" : "") },
+      h("h2", null, ready ? "這台電腦可以使用 AI" : "這台電腦尚未準備好"),
+      h("p", null, ready ? "已通過環境檢查、模型已載入，測試翻譯也有產生目標語言的文字。請三種語言（英、日、德）都各測一次，並看譯文是否合理。" : "請依序完成上面三個步驟。")),
+    h("div", { class: "card warn" }, h("p", null, "清除瀏覽器資料，或電腦開機會還原，都會讓已存的模型消失。如果教室電腦有這類設定，考試當天開機後要再確認一次。")),
+    h("div", { class: "btns" }, h("a", { href: "#" }, h("button", { class: "plain" }, "回到登入頁"))));
+}
+
+/* ===================== 學生端 =====================
+   角色是 PM / Translator / Reviewer，用組員的名字顯示。一個人可以有多個角色。
+   每一段原文是一個「任務」，任務有一串由 PM 排好的「步驟」：翻譯 →（審校 → 修改 …）→ PM 最終檢查。 */
+const chip = (t, mono) => h("span", { class: "chip" + (mono ? "" : " t") }, t);
+const allDone = () => S.tasks.length > 0 && S.tasks.every((x) => x.status === "done");
+const verText = (v) => v.vLabel + "　" + (STEP_KINDS[v.kind] ? STEP_KINDS[v.kind].label : v.kind) + "（" + nameOf(v.anonId) + "）";
+const latestVersion = () => S.versions[S.versions.length - 1] || null;
+const authorsOf = (plan) => [...new Set((plan || []).filter((x) => x.kind === "translate" || x.kind === "revise").map((x) => x.anonId).filter(Boolean))];
+
+function editMode(t) {
+  const st = curStep(t);
+  return st && S.me && st.anonId === S.me.anonId ? st.kind : null;
+}
+function seedDraft(t, mode) {
+  if (!S.dr.loaded || S.dr.taskId !== t.id) return;
+  const st = curStep(t);
+  if (!st) return;
+  const key = (t.stepIdx || 0) + ":" + st.id;
+  if (S.dr.baseKey === key) return;
+  S.dr.baseKey = key;
+  S.dr.openedAt = Date.now();
+  if (mode !== "translate") S.dr.text = (latestVersion() || {}).content || "";
+  S.dr.comments = {};
+  scheduleSave();
+}
+
+function aiMatchFor(text) {
+  return S.myAi.map((l) => {
+    const s = overlapScores(l.response, text, langOf(curTask()));
+    return { logId: l.id, mode: l.mode, contained: +s.contained.toFixed(3), dice: +s.dice.toFixed(3) };
+  }).filter((x) => x.contained > 0).sort((a, b) => b.contained - a.contained).slice(0, 5);
+}
+
+const planCtx = (from) => Object.assign({ pm: pmAnon(), name: nameOf, from: from || 0 }, rolesIn());
+const stripPlan = (plan) => plan.map((s) => ({ kind: s.kind, anonId: s.anonId }));
+const planSummary = (plan) => plan.map((s) => STEP_KINDS[s.kind].short + ":" + s.anonId).join(" → ");
+
+/* ---------- 組員角色（PM 一次指定） ---------- */
+async function saveRoles(ed) {
+  if (!S.me.isPM) throw new Error("只有 PM 可以指定組員角色");
+  const translators = [...ed.t], reviewers = [...ed.r];
+  if (!translators.length) throw new Error("至少要有一位 Translator");
+  if (!reviewers.length) throw new Error("至少要有一位 Reviewer");
+  const F = S.F;
+  const batch = F.writeBatch(S.db);
+  batch.set(dref("groupRoles", S.sid + "~" + S.me.groupId), {
+    sessionId: S.sid, groupId: S.me.groupId, pm: pmAnon(), translators, reviewers,
+    updatedBy: S.me.anonId, updatedAt: F.serverTimestamp(), clientTime: Date.now()
+  });
+  batch.set(F.doc(col("events")), evBase(NOTASK, "roles_set", { detail: "T:" + translators.join(",") + " | R:" + reviewers.join(",") }));
+  await batch.commit();
+  S.rolesEd = null;
+  S.showRoles = false;
+}
+
+function rolesPanel() {
+  const set = !!S.groupRoles;
+  if (S.showRoles === undefined || S.showRoles === null) S.showRoles = !set && S.me.isPM;
+  const head = h("div", { class: "top" }, h("h2", null, "組員與角色（" + S.members.length + " 人）"),
+    h("button", { class: "plain sm", onclick: () => { S.showRoles = !S.showRoles; rr(); } }, S.showRoles ? "收合" : "展開"));
+  if (!S.showRoles) {
+    return h("div", { class: "card" }, head, S.members.length ? h("div", { class: "chips" }, S.members.map((m) =>
+      h("span", { class: "chip t" }, (m.name || String(m.email).split("@")[0]) + "：" + (rolesOfAnon(m.anonId).join(" / ") || "未指定")))) : null,
+      !set ? h("p", { class: "hint" }, S.me.isPM ? "還沒有指定角色，請展開後指定。" : "PM 還沒有指定角色。") : null,
+      (S.me.roles || []).length ? roleDutyBox(S.me.roles) : null);
+  }
+  if (!S.me.isPM) {
+    return h("div", { class: "card" }, head,
+      !set ? h("p", { class: "sub" }, "PM 還沒有指定角色，指定後這裡會自動更新。") : null,
+      S.members.map((m) => h("div", { class: "row" }, h("span", null, (m.name || String(m.email).split("@")[0]) + (m.anonId === S.me.anonId ? "（你）" : "")),
+        h("span", { class: "hint" }, rolesOfAnon(m.anonId).join(" / ") || "未指定"))),
+      roleDutyBox());
+  }
+  if (!S.rolesEd) { const R = rolesIn(); S.rolesEd = { t: new Set(R.translators), r: new Set(R.reviewers) }; }
+  const ed = S.rolesEd;
+  const solo = ed.t.size === 1 && ed.r.size === 1 && [...ed.t][0] === [...ed.r][0];
+  return h("div", { class: "card" }, head,
+    h("p", { class: "sub" }, "勾選每個人負責什麼（可以都勾）。"),
+    S.members.map((m, i) => h("div", { class: "row" },
+      h("span", null, (m.name || String(m.email).split("@")[0]) + (m.pm ? "（PM）" : "")),
+      h("div", { class: "btns" },
+        h("label", { class: "chk" }, h("input", { type: "checkbox", id: "rt" + i, checked: ed.t.has(m.anonId), onchange: (e) => { e.target.checked ? ed.t.add(m.anonId) : ed.t.delete(m.anonId); rr(); } }), "翻譯"),
+        h("label", { class: "chk" }, h("input", { type: "checkbox", id: "rr" + i, checked: ed.r.has(m.anonId), onchange: (e) => { e.target.checked ? ed.r.add(m.anonId) : ed.r.delete(m.anonId); rr(); } }), "審校")))),
+    solo ? h("p", { class: "hint" }, "只有一個人同時翻譯和審校的話，他翻的內容沒人能審。" ) : null,
+    h("div", { class: "btns" }, h("button", { id: "save-roles", disabled: S.busy, onclick: () => act(() => saveRoles(ed), "已儲存角色") }, "儲存")),
+    roleDutyBox());
+}
+
+/* ---------- 切段與派發（PM） ---------- */
+function defaultPlan(i) {
+  const R = rolesIn(), pm = pmAnon();
+  const tr = R.translators.length ? R.translators[i % R.translators.length] : "";
+  const rvs = R.reviewers.filter((a) => a !== tr);
+  const rv = rvs.length ? rvs[i % rvs.length] : "";
+  return [{ kind: "translate", anonId: tr }, { kind: "review", anonId: rv }, { kind: "revise", anonId: tr }, { kind: "final", anonId: pm }];
+}
+function startSeg(item) {
+  // 先整篇放進第 1 段；PM 自己把要分出去的部分剪下、貼到「新增一段」
+  S.seg = { bankId: item.id, title: item.title, parts: [{ text: item.sourceText.trim(), plan: defaultPlan(0) }] };
+}
+async function dispatchSegments() {
+  const sg = S.seg;
+  if (!sg || !sg.parts.length) throw new Error("沒有可派發的段落");
+  const ctx = planCtx(0);
+  sg.parts.forEach((p, i) => {
+    if (!p.text.trim()) throw new Error("第 " + (i + 1) + " 段的原文是空的");
+    const e = planProblems(p.plan, ctx);
+    if (e.length) throw new Error("第 " + (i + 1) + " 段的流程有問題：" + e[0]);
+  });
+  const F = S.F;
+  const nums = S.tasks.map((t) => parseInt(String(t.code).split("-").pop(), 10) || 0);
+  let n = nums.length ? Math.max(...nums) : 0;
+  const total = sg.parts.length, now = Date.now();
+  const batch = F.writeBatch(S.db);
+  let firstId = "";
+  sg.parts.forEach((p, i) => {
+    n++;
+    const code = S.me.groupId + "-" + p2(n);
+    const tref = F.doc(col("tasks"));
+    if (!firstId) firstId = tref.id;
+    const plan = p.plan.map((s, j) => ({ id: "s" + (j + 1), kind: s.kind, anonId: s.anonId, startedAt: j === 0 ? now : null }));
+    const title = sg.title + (total > 1 ? "（第 " + (i + 1) + "/" + total + " 段）" : "");
+    batch.set(tref, {
+      sessionId: S.sid, groupId: S.me.groupId, lang: S.me.lang, bankId: sg.bankId, bankTitle: sg.title, title, segIdx: i + 1, segTotal: total,
+      sourceText: p.text.trim(), code, status: "active", stepIdx: 0, plan, initialPlan: stripPlan(p.plan), stepSeq: plan.length,
+      vCount: 0, reworkCount: 0, createdBy: S.me.anonId, createdAt: F.serverTimestamp(), updatedAt: F.serverTimestamp(), clientTime: now
+    });
+    batch.set(F.doc(col("events")), evBase({ id: tref.id, code }, "dispatch", { role: "PM", toAnon: plan[0].anonId, detail: title + "｜" + planSummary(p.plan) }));
+  });
+  await batch.commit();
+  S.seg = null; S.pmPick = "";
+  S.taskId = null;
+  S.pendingPick = firstId;
+}
+
+function planEditor(pfx, plan, o) {
+  o = o || {};
+  const from = o.from || 0;
+  const R = rolesIn(), pm = pmAnon();
+  const authors = new Set(authorsOf(plan));
+  const errs = planProblems(plan, planCtx(from));
+  const optsFor = (kind, cur) => {
+    const list = kind === "review" ? R.reviewers : R.translators;
+    return [h("option", { value: "" }, "請選人…")].concat(list.map((a) => {
+      const bad = kind === "review" && authors.has(a) && a !== cur;
+      return h("option", { value: a, disabled: bad }, nameOf(a) + (bad ? "（翻過這段，不能審）" : ""));
+    }));
+  };
+  const rows = plan.map((s, i) => {
+    const locked = i < from;
+    const last = i === plan.length - 1;
+    const movable = !locked && i > 0 && !last;
+    const kindCell = (locked || i === 0 || last)
+      ? h("span", { class: "pk" }, STEP_KINDS[s.kind].label)
+      : h("select", { id: pfx + "-k" + i, value: s.kind, onchange: (e) => { s.kind = e.target.value; s.anonId = ""; rr(); } },
+        ["review", "revise"].map((k) => h("option", { value: k }, STEP_KINDS[k].label)));
+    const who = locked ? h("span", null, nameOf(s.anonId) + (s.done ? "　✓ 已完成" : ""))
+      : s.kind === "final" ? h("span", null, nameOf(pm) + "（PM）")
+        : h("select", { id: pfx + "-p" + i, value: s.anonId || "", onchange: (e) => { s.anonId = e.target.value; rr(); } }, optsFor(s.kind, s.anonId));
+    return h("div", { class: "prow" + (locked ? " locked" : "") },
+      h("span", { class: "pno" }, String(i + 1)), kindCell, who,
+      movable ? h("div", { class: "btns" },
+        h("button", { class: "plain sm", id: pfx + "-up" + i, disabled: i - 1 < Math.max(from, 1), onclick: () => { plan.splice(i - 1, 0, plan.splice(i, 1)[0]); rr(); } }, "↑"),
+        h("button", { class: "plain sm", id: pfx + "-dn" + i, disabled: i + 1 >= plan.length - 1, onclick: () => { plan.splice(i + 1, 0, plan.splice(i, 1)[0]); rr(); } }, "↓"),
+        h("button", { class: "danger sm", id: pfx + "-rm" + i, onclick: () => { plan.splice(i, 1); rr(); } }, "刪除")) : null);
+  });
+  const add = (kind) => { plan.splice(plan.length - 1, 0, { kind, anonId: "" }); rr(); };
+  const el = h("div", { class: "pe" }, rows,
+    h("div", { class: "btns" },
+      h("button", { class: "ghost sm", id: pfx + "-addr", onclick: () => add("review") }, "＋ 加一個審校步驟"),
+      h("button", { class: "ghost sm", id: pfx + "-addv", onclick: () => add("revise") }, "＋ 加一個修改步驟")),
+    errs.length ? h("div", { class: "perr" }, errs.map((x) => h("div", null, "⚠ " + x))) : null,
+    !errs.length && !plan.some((x) => x.kind === "review") ? h("div", { class: "hint" }, "提醒：這個流程沒有審校步驟。") : null);
+  return { el, errs };
+}
+
+/* 預設用簡單版：只選「誰翻譯、誰審校」，以及審校後要不要讓譯者修改一次。需要更多步驟再按「自訂步驟」。 */
+const isSimplePlan = (plan) => {
+  const k = plan.map((x) => x.kind).join(",");
+  return k === "translate,review,final" || k === "translate,review,revise,final";
+};
+function simpleOrFull(i, p) {
+  if (p.adv || !isSimplePlan(p.plan)) {
+    const pe = planEditor("sg" + i, p.plan, {});
+    const el = h("div", { class: "pe" }, pe.el, isSimplePlan(p.plan) ? h("div", { class: "btns" }, h("button", { class: "plain sm", onclick: () => { p.adv = false; rr(); } }, "回到簡單設定")) : null);
+    return { el, errs: pe.errs };
+  }
+  const R = rolesIn();
+  const tr = p.plan[0], rv = p.plan[1];
+  const hasRev = p.plan.length === 4;
+  const errs = planProblems(p.plan, planCtx(0));
+  const opt = (list, bad) => [h("option", { value: "" }, "請選人…")].concat(list.map((a) => h("option", { value: a, disabled: bad(a) }, nameOf(a) + (bad(a) ? "（翻過這段，不能審）" : ""))));
+  const setTr = (a) => { tr.anonId = a; if (hasRev) p.plan[2].anonId = a; rr(); };
+  const setRev = (on) => {
+    if (on && !hasRev) p.plan.splice(2, 0, { kind: "revise", anonId: tr.anonId });
+    if (!on && hasRev) p.plan.splice(2, 1);
+    rr();
+  };
+  const el = h("div", { class: "pe" },
+    h("div", { class: "grid" },
+      h("div", { class: "fld" }, h("label", { for: "sg" + i + "-tr" }, "誰翻譯"), h("select", { id: "sg" + i + "-tr", value: tr.anonId || "", onchange: (e) => setTr(e.target.value) }, opt(R.translators, () => false))),
+      h("div", { class: "fld" }, h("label", { for: "sg" + i + "-rv" }, "誰審校"), h("select", { id: "sg" + i + "-rv", value: rv.anonId || "", onchange: (e) => { rv.anonId = e.target.value; rr(); } }, opt(R.reviewers, (a) => a === tr.anonId)))),
+    h("label", { class: "chk" }, h("input", { type: "checkbox", id: "sg" + i + "-rev", checked: hasRev, onchange: (e) => setRev(e.target.checked) }), "審校後，讓譯者再修改一次"),
+    errs.length ? h("div", { class: "perr" }, errs.map((x) => h("div", null, "⚠ " + x))) : null,
+    h("div", { class: "hint" }, "最後一步固定由 PM 檢查並繳交。"),
+    h("div", { class: "btns" }, h("button", { class: "plain sm", id: "sg" + i + "-adv", onclick: () => { p.adv = true; rr(); } }, "自訂步驟")));
+  return { el, errs };
+}
+
+function segPanel() {
+  const sg = S.seg;
+  const R = rolesIn();
+  const ready = S.groupRoles && R.translators.length && R.reviewers.length;
+  const card = (...kids) => h("div", { class: "card" }, h("h2", null, "分配任務"), ...kids);
+  if (!ready) return card(h("p", { class: "sub" }, "請先在上方「組員與角色」指定每位組員的角色，才能派發任務。"));
+  if (S.bank.length === 0) return card(h("p", { class: "sub" }, "老師目前還沒有釋出題目。"), h("div", { class: "btns" }, h("button", { class: "plain", onclick: () => loadBank() }, "重新整理題庫")));
+  const used = new Set(S.tasks.map((x) => x.bankId));
+  const pick = S.bank.find((b) => b.id === S.pmPick) || null;
+  const kids = [
+    h("p", { class: "hint" }, "本組的目標語言：" + LANGS[S.me.lang].name + "（" + LANGS[S.me.lang].short + "）。原文都是中文。流程由你決定：選好題目後，需要的話把原文分成幾段（複製貼上即可），再替每一段選誰翻譯、誰審校。"),
+    h("label", { for: "pm-pick" }, "選擇題目"),
+    h("select", { id: "pm-pick", value: S.pmPick, onchange: (e) => { S.pmPick = e.target.value; S.seg = null; const it = S.bank.find((b) => b.id === e.target.value); if (it) startSeg(it); rr(); } },
+      h("option", { value: "" }, "請選擇…"), S.bank.map((b) => h("option", { value: b.id }, b.title + (used.has(b.id) ? "（已派發）" : "")))),
+    h("div", { class: "btns" }, h("button", { class: "plain sm", onclick: () => loadBank() }, "重新整理題庫"))];
+  if (pick && !sg) startSeg(pick);
+  if (pick && S.seg) {
+    kids.push(h("p", { class: "hint" }, "原文先放在第 1 段。要分給不同人，就把一部分文字剪下，按「＋ 新增一段」貼進去；每一段各選誰翻譯、誰審校。"));
+    let bad = 0;
+    S.seg.parts.forEach((p, i) => {
+      const pe = simpleOrFull(i, p);
+      if (pe.errs.length || !p.text.trim()) bad++;
+      kids.push(h("div", { class: "box" },
+        h("div", { class: "top" }, h("h3", null, "第 " + (i + 1) + " 段　" + p.text.trim().length + " 字"),
+          S.seg.parts.length > 1 ? h("button", { class: "danger sm", id: "sg" + i + "-del", onclick: () => { S.seg.parts.splice(i, 1); rr(); } }, "刪除這段") : null),
+        h("textarea", { id: "sg" + i + "-text", class: "segtext", placeholder: "把這一段的中文原文貼在這裡", value: p.text, oninput: (e) => { p.text = e.target.value; } }),
+        pe.el));
+    });
+    kids.push(h("div", { class: "btns" },
+      h("button", { class: "ghost", id: "seg-add", onclick: () => { S.seg.parts.push({ text: "", plan: defaultPlan(S.seg.parts.length) }); rr(); } }, "＋ 新增一段")));
+    kids.push(h("div", { class: "btns" },
+      h("button", { id: "seg-go", disabled: S.busy || bad > 0 || !S.seg.parts.length, onclick: () => { if (confirm("確定要派發這 " + S.seg.parts.length + " 段嗎？派發後原文就不能修改。")) act(dispatchSegments, "已派發任務"); } }, "派發 " + S.seg.parts.length + " 段"),
+      bad ? h("span", { class: "hint" }, "有 " + bad + " 段的流程還沒設好（請看上面的紅字）") : null));
+  }
+  return card(...kids);
+}
+
+/* ---------- 步驟完成 / 送回 / 調整流程（全部用交易，避免兩個人同時操作造成錯亂） ---------- */
+async function completeStep(t, ret) {
+  const F = S.F, text = S.dr.text.trim(), comment = ((S.dr.comments || {}).note || "").trim();
+  if (!text) throw new Error("譯文不能是空的");
+  if (ret && !comment) throw new Error("送回時，請寫下要對方修改的意見");
+  await saveDraftNow();
+  const match = aiMatchFor(text);
+  await F.runTransaction(S.db, async (tx) => {
+    const tref = dref("tasks", t.id);
+    const snap = await tx.get(tref);
+    if (!snap.exists()) throw new Error("找不到這個任務");
+    const cur = snap.data();
+    const idx = cur.stepIdx || 0;
+    const plan = (cur.plan || []).map((x) => Object.assign({}, x));
+    const st = plan[idx];
+    if (cur.status !== "active" || !st || st.anonId !== S.me.anonId) throw new Error("目前不能提交：輪到的人或任務狀態已經改變。請重新整理頁面。");
+    if (st.kind === "review" && authorsOf(plan).includes(S.me.anonId)) throw new Error("你翻譯或修改過這一段，不能審校自己的譯文。請 PM 調整流程。");
+    if (ret && st.kind !== "review" && st.kind !== "final") throw new Error("這一步不能送回");
+    const now = Date.now();
+    const vNo = (cur.vCount || 0) + 1, label = "v" + vNo;
+    tx.set(F.doc(F.collection(S.db, "tasks", t.id, "versions")), {
+      taskId: t.id, taskCode: cur.code, lang: cur.lang || S.me.lang, sessionId: S.sid, groupId: S.me.groupId, anonId: S.me.anonId,
+      indTaskId: cur.code + "-" + S.me.anonId, role: STEP_KINDS[st.kind].role, kind: st.kind, stepId: st.id, stepIdx: idx, vNo, vLabel: label,
+      round: (cur.reworkCount || 0) + 1, content: text, chars: text.length, comment, returned: !!ret, aiMatch: match,
+      startedAt: st.startedAt || null, openedAt: S.dr.openedAt || null, at: F.serverTimestamp(), clientTime: now
+    });
+    plan[idx] = Object.assign(st, { done: true, doneAt: now, vLabel: label });
+    const upd = { vCount: vNo, updatedAt: F.serverTimestamp() };
+    let type = "submit", toAnon = "";
+    if (ret) {
+      let seq = cur.stepSeq || plan.length;
+      plan.splice(idx + 1, 0,
+        { id: "s" + (++seq), kind: ret.kind, anonId: ret.anonId, startedAt: now },
+        { id: "s" + (++seq), kind: st.kind, anonId: st.anonId, startedAt: null });
+      // 這一次送回已經安排了「修改 → 再審」，所以原本緊接在後面、同一個人的「修改」步驟不用再做一次
+      const after = plan[idx + 3];
+      if (after && after.kind === "revise" && after.anonId === ret.anonId && !after.done) plan.splice(idx + 3, 1);
+      Object.assign(upd, { stepIdx: idx + 1, stepSeq: seq, reworkCount: (cur.reworkCount || 0) + 1 });
+      type = "return"; toAnon = ret.anonId;
+    } else if (st.kind === "final") {
+      Object.assign(upd, { status: "done", finalText: text, confirmedAt: F.serverTimestamp() });
+      type = "pm_confirm";
+    } else {
+      plan[idx + 1].startedAt = now;
+      upd.stepIdx = idx + 1; toAnon = plan[idx + 1].anonId;
+    }
+    upd.plan = plan;
+    tx.set(F.doc(col("events")), evBase({ id: t.id, code: cur.code }, type, { role: STEP_KINDS[st.kind].role, kind: st.kind, stepIdx: idx, vLabel: label, toAnon, detail: comment }));
+    tx.update(tref, upd);
+  });
+  S.retTarget = "";
+}
+
+async function savePlanEdit(t, tail) {
+  const F = S.F;
+  await F.runTransaction(S.db, async (tx) => {
+    const tref = dref("tasks", t.id);
+    const snap = await tx.get(tref);
+    const cur = snap.data();
+    if (!cur || cur.status !== "active") throw new Error("這個任務已經完成，不能再調整流程");
+    const idx = cur.stepIdx || 0, now = Date.now();
+    const done = (cur.plan || []).slice(0, idx);
+    let seq = cur.stepSeq || cur.plan.length;
+    const curStepOld = cur.plan[idx];
+    const merged = tail.map((s, j) => {
+      const keep = s.id && cur.plan.find((x) => x.id === s.id);
+      const o = { id: s.id || "s" + (++seq), kind: s.kind, anonId: s.anonId, startedAt: keep ? (keep.startedAt || null) : null };
+      if (j === 0 && (!keep || keep.anonId !== curStepOld.anonId)) o.startedAt = now;
+      else if (j === 0 && !o.startedAt) o.startedAt = now;
+      return o;
+    });
+    const plan = done.concat(merged);
+    const errs = planProblems(plan, planCtx(idx));
+    if (errs.length) throw new Error(errs[0]);
+    tx.set(F.doc(col("events")), evBase({ id: t.id, code: cur.code }, "plan_edit", { role: "PM", detail: "原：" + planSummary(cur.plan.slice(idx)) + "｜新：" + planSummary(merged) }));
+    tx.update(tref, { plan, stepSeq: seq, updatedAt: F.serverTimestamp() });
+  });
+  S.pe = null;
+}
+
+async function submitReflection() {
+  const answers = REFLECTION_PROMPTS.map((q, i) => ({ q, a: (S.rf.answers[i] || "").trim() }));
+  if (answers.some((x) => !x.a)) throw new Error("每一題都要回答");
+  const F = S.F;
+  const data = {
+    sessionId: S.sid, groupId: S.me.groupId, anonId: S.me.anonId, role: S.me.roleLabel, answers,
+    submittedAt: F.serverTimestamp(), clientTime: Date.now()
+  };
+  await F.setDoc(dref("reflections", rosterId(S.sid, S.email)), data);
+  await F.addDoc(col("events"), {
+    type: "reflection", taskId: "", taskCode: "", sessionId: S.sid, groupId: S.me.groupId, anonId: S.me.anonId,
+    indTaskId: "", role: S.me.roleLabel, at: F.serverTimestamp(), clientTime: Date.now()
+  });
+  S.reflection = Object.assign({}, data, { submittedAt: null });
+  S.showRefl = false;
+}
+
+/* ---------- 插入（AI 內容 / 術語） ---------- */
+function insertText(txt, type, extra) {
+  const t = curTask();
+  const mode = editMode(t);
+  if (!mode) return;
+  const cur = S.dr.text;
+  let s = cur.length;
+  if (S.caret && S.caret.taskId === t.id) s = Math.min(S.caret.s, cur.length);
+  S.dr.text = cur.slice(0, s) + txt + cur.slice(s);
+  S.caret = { taskId: t.id, s: s + txt.length, e: s + txt.length };
+  scheduleSave();
+  logEvent(t, type, extra).catch((e) => console.error(e));
+  rr();
+  setTimeout(() => {
+    const el = document.getElementById("editor");
+    if (el) { el.focus(); try { el.setSelectionRange(S.caret.s, S.caret.e); } catch (e) {} }
+  }, 40);
+}
+
+/* ---------- 畫面 ---------- */
+function viewStudent() {
+  const t = curTask();
+  const me = S.me;
+  const needRefl = allDone() && !S.reflection;
+  return h("div", { class: "wrap" },
+    h("header", { class: "top" },
+      h("div", { class: "l" },
+        h("h1", null, "翻譯實作儀表板"),
+        h("div", { class: "chips" }, chip("Group " + me.groupId, true), chip(S.sessionName || S.sid), chip((me.name || String(S.email).split("@")[0]) + "：" + me.roleLabel), chip("匿名編號 " + me.anonId, true))),
+      h("div", { class: "btns" },
+        h("button", { class: S.reflection ? "plain" : "ghost", onclick: () => { S.showRefl = true; rr(); } }, S.reflection ? "我的反思（已繳交）" : "繳交課後反思"),
+        h("button", { class: "plain", onclick: doLogout }, "登出"))),
+    needRefl ? h("div", { class: "card warn" }, h("h3", null, "離開教室前，請先繳交課後反思"),
+      h("p", null, "所有任務都已經完成，但你還沒有繳交反思。"),
+      h("div", { class: "btns" }, h("button", { onclick: () => { S.showRefl = true; rr(); } }, "現在去填寫"))) : null,
+    h("div", { class: "cols" },
+      h("div", { class: "main" },
+        rolesPanel(),
+        taskBar(),
+        t ? stepper(t) : null,
+        t ? workPanel(t) : emptyState(),
+        t && t.status === "done" ? historyPanel(t) : null),
+      h("aside", { class: "side" }, aiPanel(t), glossaryPanel(t))));
+}
+
+function emptyState() {
+  return h("div", { class: "card" }, h("h2", null, "目前沒有任務"),
+    h("p", { class: "sub" }, S.me.isPM ? "請在上方「切段與派發任務」選一個題目開始。" : "請等 PM 派發任務，頁面會自動更新。"));
+}
+
+function taskStateText(x) {
+  if (x.status === "done") return "已完成";
+  const st = curStep(x);
+  return st ? stepLabel(st) + "：" + nameOf(st.anonId) : "進行中";
+}
+function taskBar() {
+  const kids = [];
+  if (S.tasks.length) {
+    const byBank = {};
+    S.tasks.forEach((x) => { (byBank[x.bankId] = byBank[x.bankId] || []).push(x); });
+    const whole = Object.values(byBank).filter((g) => g.length > 1 && g.every((x) => x.status === "done"));
+    kids.push(h("div", { class: "card" }, h("h2", null, "任務（" + S.tasks.length + "）"),
+      h("div", { class: "tasks" }, S.tasks.map((x) => h("button", {
+        class: "taskbtn" + (x.id === S.taskId ? " on" : ""),
+        onclick: () => { S.taskId = x.id; S.pe = null; watchTask(); rr(); }
+      }, x.code + "　" + x.title, h("span", { class: "badge" + (x.status === "done" ? " ok" : "") }, taskStateText(x))))),
+      S.me.isPM && whole.length ? h("div", { class: "btns" }, whole.map((g) => h("button", { class: "ghost", onclick: () => {
+        const ordered = g.slice().sort((a, b) => (a.segIdx || 0) - (b.segIdx || 0));
+        download((g[0].bankTitle || "最終譯文") + "-整份最終譯文.txt", "題目：" + (g[0].bankTitle || "") + "\r\n組別：" + g[0].groupId + "\r\n\r\n" + ordered.map((x) => x.finalText || "").join("\r\n\r\n"), "text/plain");
+      } }, "下載整份最終譯文：" + (g[0].bankTitle || "")))) : null));
+  }
+  if (S.me.isPM) kids.push(segPanel());
+  return h("div", { style: "display:flex;flex-direction:column;gap:20px" }, kids);
+}
+
+function stepper(t) {
+  const done = t.status === "done";
+  const cur = t.stepIdx || 0;
+  return h("div", { class: "card" },
+    h("div", { class: "top" }, h("h2", null, t.code + "　" + t.title), h("span", { class: "badge " + (done ? "ok" : "warn") }, taskStateText(t))),
+    h("div", { class: "stepper" }, (t.plan || []).map((s, i) => {
+      const cls = s.done || done ? "done" : i === cur ? "cur" : "";
+      return h("div", { class: "step " + cls }, h("div", { class: "dot" }, String(i + 1)),
+        h("div", null, h("b", null, STEP_KINDS[s.kind].label), h("small", null, nameOf(s.anonId) + (s.done ? "　已完成" : i === cur && !done ? "　進行中" : ""))));
+    })));
+}
+
+function sourceCard(t) {
+  const L = LANGS[langOf(t)];
+  return h("div", { class: "card" }, h("div", { class: "top" }, h("h2", null, "原文（中文）"), h("span", { class: "badge ok" }, L.short + "：請翻成" + L.name)),
+    h("div", { class: "src", id: "src-box", "data-keep": "1" }, t.sourceText),
+    h("div", { class: "hint" }, "共 " + (t.sourceText || "").length + " 字，原文太長時可以在框內上下捲動。任務編號 " + t.code + "　你的個人任務編號 " + t.code + "-" + S.me.anonId));
+}
+
+function workPanel(t) {
+  const mode = editMode(t);
+  if (mode) seedDraft(t, mode);
+  const kids = [sourceCard(t)];
+  if (mode) kids.push(editPanel(t, mode));
+  else kids.push(waitPanel(t));
+  if (S.me.isPM && t.status === "active") kids.push(planEditPanel(t));
+  return h("div", { style: "display:flex;flex-direction:column;gap:20px" }, kids);
+}
+
+function editorBox(t, mode, title, opts) {
+  opts = opts || {};
+  const savedTxt = S.dr.saved ? "　草稿已儲存 " + fmtShort(S.dr.saved).slice(6) : "";
+  return h("div", { class: "card" },
+    h("div", { class: "top" }, h("h2", null, title), h("span", { class: "mono", id: "cnt" }, S.dr.text.length + " 字" + savedTxt)),
+    opts.before || null,
+    h("label", { for: "editor" }, (mode === "translate" ? "譯文" : "譯文（直接在這裡修改）") + "（" + LANGS[langOf(t)].name + "）"),
+    h("textarea", {
+      id: "editor", class: "editor", lang: LANGS[langOf(t)].html, value: S.dr.text, placeholder: LANGS[langOf(t)].ph, readOnly: !!S.busy,
+      oninput: (e) => {
+        const was = !!S.dr.text.trim();
+        S.dr.text = e.target.value;
+        scheduleSave();
+        const c = document.getElementById("cnt");
+        if (c) c.textContent = S.dr.text.length + " 字";
+        if (was !== !!S.dr.text.trim()) rr(); // 從空白變成有字（或相反）時，更新按鈕的可用狀態
+      },
+      onkeyup: (e) => { S.caret = { taskId: t.id, s: e.target.selectionStart, e: e.target.selectionEnd }; },
+      onclick: (e) => { S.caret = { taskId: t.id, s: e.target.selectionStart, e: e.target.selectionEnd }; },
+      onblur: (e) => { if (S.rendering) return; S.caret = { taskId: t.id, s: e.target.selectionStart, e: e.target.selectionEnd }; saveDraftNow(); }
+    }),
+    opts.after || null);
+}
+
+function retOptions(t, kind) {
+  const plan = t.plan || [];
+  const authors = authorsOf(plan);
+  const R = rolesIn();
+  const out = [];
+  R.translators.forEach((a) => out.push({ anonId: a, kind: "revise", text: "請 " + nameOf(a) + " 修改" + (authors.includes(a) ? "（原譯者）" : "") }));
+  if (kind === "final") R.reviewers.filter((a) => !authors.includes(a)).forEach((a) => out.push({ anonId: a, kind: "review", text: "請 " + nameOf(a) + " 再審校" }));
+  return out.filter((o) => o.anonId !== S.me.anonId);
+}
+
+function editPanel(t, mode) {
+  const idx = t.stepIdx || 0, plan = t.plan || [];
+  const next = plan[idx + 1] || null;
+  const prev = latestVersion();
+  const titles = { translate: "我的翻譯", revise: "修改譯文", review: "審校譯文", final: "最終檢查" };
+  let before = null;
+  if (mode === "revise" || mode === "review" || mode === "final") {
+    before = h("div", { class: "card " + (prev && prev.comment ? "warn" : "") },
+      h("h3", null, prev ? "上一步：" + verText(prev) : "上一步"),
+      prev && prev.comment ? h("p", { style: "white-space:pre-wrap" }, prev.comment) : h("p", { class: "sub" }, "（上一位沒有留下文字意見）"),
+      mode === "review" ? h("p", { class: "hint" }, "你不會審到自己翻譯或修改過的譯文。下面的內容是上一版，直接修改即可。") : null);
+  }
+  const noteLabel = mode === "translate" ? "給下一位的備註（選填）" : mode === "final" ? "給組員的備註（選填；退回時必填）" : "審校意見／給下一位的備註（選填；送回修改時必填）";
+  const canRet = (mode === "review" || mode === "final");
+  const opts = canRet ? retOptions(t, mode) : [];
+  const sel = opts.find((o) => o.anonId + "|" + o.kind === S.retTarget) || null;
+  const after = h("div", { style: "display:flex;flex-direction:column;gap:12px" },
+    h("label", { for: "note" }, noteLabel),
+    h("textarea", { id: "note", style: "min-height:80px", value: (S.dr.comments || {}).note || "", oninput: (e) => { S.dr.comments = Object.assign({}, S.dr.comments, { note: e.target.value }); scheduleSave(); } }),
+    h("div", { class: "btns" },
+      h("button", { id: "step-go", disabled: S.busy || !S.dr.text.trim(), onclick: () => {
+        const msg = mode === "final" ? "確定最終譯文沒有問題，要繳交並完成這一段嗎？" : "確定要完成這一步，交給 " + (next ? nameOf(next.anonId) : "下一位") + " 嗎？提交後這一版就不能再修改。";
+        if (confirm(msg)) act(() => completeStep(t, null), mode === "final" ? "已繳交最終譯文" : "已交給下一位");
+      } }, mode === "final" ? "繳交最終譯文（完成這一段）" : "完成，交給 " + (next ? nameOf(next.anonId) : "下一位")),
+      h("span", { class: "hint" }, "草稿會自動儲存，提交前可以隨時修改。")),
+    canRet ? h("div", { class: "box" },
+      h("h3", null, mode === "final" ? "退回" : "送回修改"),
+      h("label", { for: "ret-to" }, "要請誰處理？（處理完會再回到你這一步" + (mode === "review" ? "；原本排在後面的同一人「修改」步驟會被這次送回取代" : "") + "）"),
+      h("select", { id: "ret-to", value: S.retTarget, onchange: (e) => { S.retTarget = e.target.value; rr(); } },
+        h("option", { value: "" }, "請選擇…"), opts.map((o) => h("option", { value: o.anonId + "|" + o.kind }, o.text))),
+      h("div", { class: "btns" }, h("button", { id: "step-ret", class: "ghost", disabled: S.busy || !sel || !S.dr.text.trim(), onclick: () => {
+        if (confirm("確定要" + sel.text + "嗎？上面的意見會一併送出。")) act(() => completeStep(t, { anonId: sel.anonId, kind: sel.kind }), "已送回");
+      } }, "送出"))) : null);
+  return editorBox(t, mode, titles[mode] + "（第 " + (idx + 1) + " 步）", { before, after });
+}
+
+function waitPanel(t) {
+  if (t.status === "done") {
+    return h("div", { class: "card ok" }, h("h2", null, "這一段已完成"), finalBlock(t),
+      S.me.isPM ? h("div", { class: "btns" },
+        h("button", { onclick: () => {
+          const text = "任務：" + t.code + "　" + t.title + "\r\n組別：" + t.groupId + "\r\n\r\n" + (t.finalText || "");
+          download(t.code + "-final.txt", text, "text/plain");
+        } }, "下載最終譯文（.txt）"),
+        h("button", { class: "plain", onclick: () => { navigator.clipboard && navigator.clipboard.writeText(t.finalText || "").then(() => toast("已複製", "ok")); } }, "複製")) : null,
+      S.me.isPM ? h("p", { class: "hint" }, "只有 PM 的畫面有下載按鈕，其他成員只能在介面中檢視。") : null);
+  }
+  const st = curStep(t);
+  if (!st) return h("div", { class: "card" }, h("h2", null, "狀態"), h("p", { class: "sub" }, t.status === "done" ? "這一段已完成。" : "這一段的流程資料不完整，請 PM 重新派發。"));
+  const mine = S.versions.filter((v) => v.anonId === S.me.anonId);
+  const last = latestVersion();
+  const myNext = (t.plan || []).slice(t.stepIdx || 0).find((s) => s.anonId === S.me.anonId);
+  return h("div", { class: "card" }, h("h2", null, "狀態"),
+    h("p", null, "目前輪到 " + nameOf(st.anonId) + "（" + stepLabel(st) + "）。" + (myNext && myNext !== st ? "稍後會輪到你（" + stepLabel(myNext) + "）。" : (myNext ? "" : "這一段你沒有後續步驟。"))),
+    last ? h("div", { class: "box" }, h("h3", null, "目前最新版本：" + verText(last)), h("div", { class: "txt" }, last.content)) : h("p", { class: "hint" }, "還沒有人提交版本。"),
+    mine.length ? h("p", { class: "hint" }, "你在這一段已提交 " + mine.length + " 個版本。") : null);
+}
+
+function finalBlock(t) {
+  return h("div", { class: "box" }, h("h3", null, "最終譯文"), h("div", { class: "txt" }, t.finalText || ""));
+}
+
+/* PM 隨時可以調整「還沒完成」的步驟 */
+function planEditPanel(t) {
+  const idx = t.stepIdx || 0;
+  if (!S.pe || S.pe.taskId !== t.id) {
+    return h("div", { class: "card" }, h("div", { class: "top" }, h("h3", null, "調整這一段的流程"),
+      h("button", { class: "ghost sm", id: "pe-open", onclick: () => { S.pe = { taskId: t.id, plan: t.plan.map((s) => Object.assign({}, s)) }; rr(); } }, "調整")));
+  }
+  const pe = planEditor("pe", S.pe.plan, { from: idx });
+  return h("div", { class: "card" }, h("h3", null, "調整這一段的流程（已完成的步驟不能改）"), pe.el,
+    h("div", { class: "btns" },
+      h("button", { id: "pe-save", disabled: S.busy || pe.errs.length > 0, onclick: () => act(() => savePlanEdit(t, S.pe.plan.slice(idx)), "已更新流程") }, "儲存流程"),
+      h("button", { class: "plain", onclick: () => { S.pe = null; rr(); } }, "取消")));
+}
+
+/* ---------- 歷程 ---------- */
+function historyPanel(t) {
+  return h("div", { class: "card" },
+    h("h2", null, "交接紀錄"),
+    S.events.length === 0 ? h("p", { class: "sub" }, "沒有紀錄。") :
+      h("div", { class: "tablewrap" }, h("table", null,
+        h("thead", null, h("tr", null, ["時間", "誰", "事件", "版本", "說明"].map((x) => h("th", null, x)))),
+        h("tbody", null, S.events.map((e) => h("tr", null,
+          h("td", { class: "m" }, fmtShort(recMs(e))),
+          h("td", null, nameOf(e.anonId) + "（" + (e.role || "") + "）"),
+          h("td", null, EVENT_LABEL[e.type] || e.type, e.toAnon ? " → " + nameOf(e.toAnon) : ""),
+          h("td", { class: "m" }, e.vLabel || ""),
+          h("td", { class: "cell" }, e.detail || "")))))));
+}
+
+/* ---------- AI 與術語表面板 ---------- */
+function aiPanel(t) {
+  const card = (...kids) => h("div", { class: "card" }, h("div", { class: "top" }, h("h2", null, "半導體小助手（離線 AI）"), h("span", { class: "mono" }, AI.modelId ? "模型：" + AI.modelId : "尚未載入")), ...kids);
+  const env = AI.env;
+  if (!env) return card(h("p", { class: "sub" }, "正在檢查這台電腦…"));
+  if (!env.webgpu || !env.adapter) {
+    return card(h("div", { class: "card bad" }, h("p", null, "這台電腦的瀏覽器不支援 WebGPU，無法使用 AI。你仍然可以自己翻譯並使用術語表。請改用 Chrome 或 Edge 113 以上，或請老師協助。")));
+  }
+  const mode = editMode(t);
+  const kids = [];
+  if (env.integrated) kids.push(h("div", { class: "card warn" }, h("p", { style: "font-size:14px" }, "這台電腦的瀏覽器用的是內建顯示卡，AI 可能當機。請老師依「AI 準備頁」的說明改成高效能顯示卡。")));
+  kids.push(h("p", { class: "hint" }, "我可以回答半導體知識，也能幫你想翻譯。但我可能答錯或漏譯，請自己判斷；專業術語請以本組術語表為準。"));
+  if (AI.status === "idle" || AI.status === "error") {
+    kids.push(h("p", { class: "sub" }, AI.status === "error" ? AI.text : "第一次使用要下載模型（約數百 MB），請在考試前先用「AI 準備頁」完成。"));
+    kids.push(h("div", { class: "btns" }, h("button", { onclick: () => aiLoad(AI.selected) }, AI.status === "error" ? "重新載入" : "載入 AI 模型")));
+  }
+  if (AI.status === "loading") {
+    kids.push(h("div", { class: "bar" }, h("div", { id: "ai-bar", style: "width:" + AI.pct + "%" })));
+    kids.push(h("div", { class: "mono", id: "ai-status" }, AI.text));
+  }
+  if (AI.status === "ready") {
+    kids.push(h("div", { class: "badge ok", style: "align-self:flex-start" }, "AI 已就緒，資料只在這台電腦處理"));
+    if (!t) kids.push(h("p", { class: "sub" }, "選擇任務後才能使用，使用紀錄會連同任務一起保存。"));
+    else {
+      const logs = S.myAi.slice();
+      kids.push(h("div", { class: "aiscroll", id: "ai-scroll", "data-keep": "1" },
+        logs.length === 0 && !(AI.busy && AI.liveFor === t.id) ? h("p", { class: "sub" }, "還沒有提問。可以按「翻譯整份原文」，或在下面輸入問題。") : null,
+        logs.map((l) => h("div", { class: "box" },
+          h("div", { class: "mono" }, fmtShort(recMs(l)) + "　" + (l.mode === "translate" ? "翻譯原文" : "提問")),
+          l.mode === "free" ? h("div", { class: "hint", style: "white-space:pre-wrap" }, "問：" + l.prompt) : null,
+          h("div", { class: "out" }, l.response),
+          h("div", { class: "btns" },
+            h("button", { class: "ghost sm", disabled: !mode, onclick: () => insertText(l.response, "ai_insert", { detail: l.id, aiLogId: l.id }) }, "插入到我的譯文"),
+            h("button", { class: "plain sm", onclick: () => { navigator.clipboard && navigator.clipboard.writeText(l.response).then(() => toast("已複製", "ok")); } }, "複製")))),
+        AI.busy && AI.liveFor === t.id ? h("div", { class: "out", id: "ai-live" }, AI.live || "（模型思考中…）") : null));
+      kids.push(h("textarea", { id: "ai-prompt", style: "min-height:70px", value: S.aiPrompt || "", placeholder: "問我半導體知識或翻譯，例如：什麼是蝕刻？「蝕刻」翻成" + LANGS[langOf(t)].name + "怎麼說？", disabled: AI.busy, oninput: (e) => { S.aiPrompt = e.target.value; } }));
+      kids.push(h("div", { class: "btns" },
+        h("button", { class: "ghost", disabled: AI.busy, onclick: () => aiSend("free") }, "送出提問"),
+        h("button", { disabled: AI.busy, onclick: () => aiSend("translate") }, "翻譯整份原文"),
+        AI.busy ? h("button", { class: "plain", onclick: () => { AI.stop = true; } }, "停止") : null));
+      kids.push(h("p", { class: "hint" }, "每次提問與回應都會記錄下來，供研究使用。已記錄 " + S.myAi.length + " 筆。"));
+    }
+  }
+  return card(...kids);
+}
+
+/* ---------- 本組術語表：PM 和 Reviewer 可以新增、修改、刪除；其他人搜尋與插入 ---------- */
+const NOTASK = { id: "", code: "" };
+const canGloss = () => !!(S.me && S.me.canGloss);
+const seedExtra = (g) => (g && g.seedId ? { seedId: g.seedId } : {});
+async function addGroupTerm(src, tgt) {
+  src = String(src || "").trim(); tgt = String(tgt || "").trim();
+  if (!src || !tgt) throw new Error("中文與" + LANGS[S.me.lang].name + "都要填");
+  if (!canGloss()) throw new Error("只有 PM 和 Reviewer 可以編輯本組術語表");
+  const F = S.F;
+  const batch = F.writeBatch(S.db);
+  batch.set(F.doc(col("groupGlossary")), { sessionId: S.sid, groupId: S.me.groupId, lang: S.me.lang, anonId: S.me.anonId, src, tgt, createdAt: F.serverTimestamp(), clientTime: Date.now() });
+  batch.set(F.doc(col("events")), evBase(NOTASK, "glossary_add", { detail: src + " → " + tgt }));
+  await batch.commit();
+}
+async function editGroupTerm(g, tgt) {
+  tgt = String(tgt || "").trim();
+  if (!tgt) throw new Error("譯文不能是空的");
+  if (!canGloss()) throw new Error("只有 PM 和 Reviewer 可以編輯本組術語表");
+  if (tgt === g.tgt) { S.gedit = null; return; }
+  const F = S.F;
+  const batch = F.writeBatch(S.db);
+  batch.update(dref("groupGlossary", g.id), { tgt, editedBy: S.me.anonId, editedAt: F.serverTimestamp(), editCount: (g.editCount || 0) + 1 });
+  batch.set(F.doc(col("events")), evBase(NOTASK, "glossary_edit", Object.assign({ detail: g.src + "：" + g.tgt + " → " + tgt }, seedExtra(g))));
+  await batch.commit();
+  S.gedit = null;
+}
+async function deleteGroupTerm(g) {
+  if (!canGloss()) throw new Error("只有 PM 和 Reviewer 可以編輯本組術語表");
+  const F = S.F;
+  const batch = F.writeBatch(S.db);
+  batch.delete(dref("groupGlossary", g.id));
+  batch.set(F.doc(col("events")), evBase(NOTASK, "glossary_delete", Object.assign({ detail: g.src + " → " + g.tgt }, seedExtra(g))));
+  await batch.commit();
+}
+async function importGroupTerms(text) {
+  const rows = parseCsv(text).filter((r) => r[0] && r[1] && !/^(zh|chinese|中文|原文)$/i.test(String(r[0]).trim()));
+  if (!rows.length) throw new Error("沒有可匯入的列（兩欄：中文、" + LANGS[S.me.lang].name + "）");
+  const have = new Set(S.glossary.map((g) => String(g.src).trim()));
+  let n = 0;
+  for (const r of rows) {
+    const src = String(r[0]).trim();
+    if (have.has(src)) continue;
+    await addGroupTerm(src, r[1]);
+    have.add(src);
+    n++;
+  }
+  return n;
+}
+
+function glossaryPanel(t) {
+  const q = S.gq.trim().toLowerCase();
+  const mode = editMode(t);
+  const can = canGloss();
+  const L = LANGS[S.me.lang];
+  const list = S.glossary.filter((g) => !q || (String(g.src) + String(g.tgt)).toLowerCase().includes(q));
+  S.gf = S.gf || { src: "", tgt: "" };
+  S.gimp = S.gimp || "";
+  const ex = { en: "wafer", ja: "ウェハー", de: "Wafer" }[S.me.lang];
+  return h("div", { class: "card" },
+    h("div", { class: "top" }, h("h2", null, "本組術語表（中 → " + L.name + "）"), h("span", { class: "hint" }, "共 " + S.glossary.length + " 筆")),
+    h("p", { class: "sub" }, can ? "PM 和 Reviewer 可以新增、修改、刪除術語；老師預放的術語也可能有錯，發現就請修改。" : "這是 PM 和 Reviewer 維護的詞彙表，搜尋後按「插入」即可放進你的譯文。"),
+    can ? h("div", { class: "box" },
+      h("h3", null, "新增術語"),
+      h("div", { class: "grid" },
+        h("div", { class: "fld" }, h("label", { for: "gs" }, "中文（原文）"), h("input", { type: "text", id: "gs", value: S.gf.src, oninput: (e) => { S.gf.src = e.target.value; } })),
+        h("div", { class: "fld" }, h("label", { for: "gt" }, L.name + "（譯文）"), h("input", { type: "text", id: "gt", value: S.gf.tgt, oninput: (e) => { S.gf.tgt = e.target.value; } }))),
+      h("div", { class: "btns" }, h("button", { disabled: S.busy, onclick: () => act(async () => { await addGroupTerm(S.gf.src, S.gf.tgt); S.gf = { src: "", tgt: "" }; }, "已新增術語") }, "新增")),
+      h("label", { for: "gi" }, "一次加很多筆：在 Excel 選兩欄（A 欄中文、B 欄" + L.name + "），複製後貼到下面，按「匯入」。已經有的中文詞會自動略過。"),
+      h("textarea", { id: "gi", style: "min-height:70px", value: S.gimp, placeholder: "晶圓\t" + ex, oninput: (e) => { S.gimp = e.target.value; } }),
+      h("div", { class: "btns" }, h("button", { class: "ghost", disabled: S.busy, onclick: () => act(async () => { const n = await importGroupTerms(S.gimp); S.gimp = ""; toast("已匯入 " + n + " 筆"); }) }, "匯入"))) : null,
+    h("label", { for: "gq" }, "搜尋術語（中英文皆可）"),
+    h("input", { type: "text", id: "gq", value: S.gq, placeholder: "例如：晶圓 或 " + ex, oninput: (e) => { S.gq = e.target.value; rr(); } }),
+    S.glossary.length === 0 ? h("p", { class: "sub" }, can ? "目前還沒有術語。請先在上方新增一筆，或貼上整張表匯入。" : "還沒有術語，建好後這裡會自動出現。") : null,
+    h("div", { class: "listscroll", id: "gl-scroll", "data-keep": "1" }, list.slice(0, 60).map((g) => {
+      const editing = S.gedit && S.gedit.id === g.id;
+      return h("div", { class: "row" },
+        editing
+          ? h("div", { class: "l" }, h("span", null, g.src), h("input", { type: "text", id: "ge-" + g.id, value: S.gedit.tgt, oninput: (e) => { S.gedit.tgt = e.target.value; } }))
+          : h("div", { class: "l" }, h("span", null, g.src + (g.seedId ? "　" : "")), g.seedId ? h("span", { class: "badge" }, "教師提供") : null, h("span", { class: "mono" }, g.tgt)),
+        h("div", { class: "btns" },
+          editing ? [
+            h("button", { class: "sm", id: "ge-save", disabled: S.busy, onclick: () => act(() => editGroupTerm(g, S.gedit.tgt), "已修改術語") }, "儲存"),
+            h("button", { class: "plain sm", onclick: () => { S.gedit = null; rr(); } }, "取消")
+          ] : [
+            h("button", { class: "ghost sm", disabled: !mode, onclick: () => insertText(g.tgt, "glossary_insert", Object.assign({ detail: g.src + " → " + g.tgt }, seedExtra(g))) }, "插入"),
+            can ? h("button", { class: "plain sm", onclick: () => { S.gedit = { id: g.id, tgt: g.tgt }; rr(); } }, "修改") : null,
+            can ? h("button", { class: "danger sm", disabled: S.busy, onclick: () => { if (confirm("刪除術語「" + g.src + "」？")) act(() => deleteGroupTerm(g)); } }, "刪除") : null]));
+    })),
+    list.length > 60 ? h("p", { class: "hint" }, "還有 " + (list.length - 60) + " 筆，請用搜尋縮小範圍。") : null,
+    q && list.length === 0 && S.glossary.length ? h("p", { class: "sub" }, "沒有符合的術語。") : null);
+}
+
+/* ---------- 課後反思 ---------- */
+function viewReflection() {
+  if (!S.rf) S.rf = { answers: S.reflection && S.reflection.answers ? S.reflection.answers.map((x) => x.a) : REFLECTION_PROMPTS.map(() => "") };
+  const done = !!S.reflection;
+  return h("div", { class: "narrow" },
+    h("h1", null, "課後反思"),
+    h("div", { class: "chips" }, chip("Group " + S.me.groupId, true), chip(S.me.roleLabel), chip("匿名編號 " + S.me.anonId, true)),
+    done ? h("div", { class: "card ok" }, h("p", null, "你已經繳交過反思。需要的話可以修改後重新送出。")) : null,
+    h("div", { class: "card" },
+      REFLECTION_PROMPTS.map((q, i) => h("div", { class: "fld" },
+        h("label", { for: "rf" + i, style: "color:var(--ink);font-size:16px" }, (i + 1) + ". " + q),
+        h("textarea", { id: "rf" + i, value: S.rf.answers[i] || "", oninput: (e) => { S.rf.answers[i] = e.target.value; } }))),
+      h("div", { class: "btns" },
+        h("button", { disabled: S.busy, onclick: () => act(submitReflection, "已繳交反思") }, done ? "重新送出" : "送出反思"),
+        h("button", { class: "plain", onclick: () => { S.showRefl = false; rr(); } }, "回到工作台"))));
+}
+
+/* ===================== 教師後台 ===================== */
+async function startTeacher() {
+  S.T = {
+    tab: "roster", sessions: [], anon: {}, consents: {}, roster: [], bank: [], gloss: [], reflections: [],
+    viewSid: (S.settings && S.settings.activeSessionId) || "", data: null, loadingData: false,
+    f: { group: "", role: "", task: "" }, cmpA: "", cmpB: "", cmpTask: "",
+    exp: { set: "events", fmt: "csv", off: {} }, bf: { id: "", title: "", text: "" },
+    nf: { name: "" }, rf: { email: "", name: "", group: "", lang: "", pm: false }, imp: "",
+    seeds: [], groupRoles: [], sf: { lang: "en", src: "", tgt: "", trap: false }, simp: "", sl: "en"
+  };
+  await loadTeacher();
+  S.view = "teacher";
+  rr();
+}
+
+async function loadTeacher() {
+  const T = S.T, F = S.F;
+  const rows = async (q) => (await F.getDocs(q)).docs.map((d) => ({ id: d.id, ...d.data() }));
+  const ss = await F.getDoc(dref("settings", "app"));
+  S.settings = ss.exists() ? ss.data() : null;
+  T.sessions = (await rows(col("sessions"))).sort(byTime);
+  if (!T.viewSid || !T.sessions.find((s) => s.id === T.viewSid)) T.viewSid = (S.settings && S.settings.activeSessionId) || (T.sessions[0] && T.sessions[0].id) || "";
+  T.anon = {};
+  (await rows(col("anonmap"))).forEach((x) => { T.anon[x.id] = x.anonId; });
+  if (T.viewSid) {
+    const sid = F.where("sessionId", "==", T.viewSid);
+    T.roster = (await rows(F.query(col("roster"), sid))).sort((a, b) => (a.groupId + (a.name || a.email)).localeCompare(b.groupId + (b.name || b.email), "zh"));
+    T.seeds = (await rows(F.query(col("seedTerms"), sid))).sort((a, b) => (a.lang + a.src).localeCompare(b.lang + b.src, "zh"));
+    T.groupRoles = await rows(F.query(col("groupRoles"), sid));
+    T.bank = (await rows(F.query(col("bank"), sid))).sort(byTime);
+    T.reflections = await rows(F.query(col("reflections"), sid));
+    T.gloss = (await rows(F.query(col("groupGlossary"), sid))).sort((a, b) => (a.groupId + a.src).localeCompare(b.groupId + b.src, "zh"));
+  } else { T.roster = []; T.bank = []; T.reflections = []; T.seeds = []; T.groupRoles = []; }
+}
+async function refreshTeacher() { await loadTeacher(); rr(); }
+
+const sessionName = (id) => { const s = S.T.sessions.find((x) => x.id === id); return s ? (s.name || id) : id; };
+
+/* ---------- 場次 ---------- */
+async function createSession() {
+  const name = S.T.nf.name.trim();
+  if (!name) throw new Error("請輸入場次名稱，例如「期中實作」");
+  const ref = await S.F.addDoc(col("sessions"), { name, createdAt: S.F.serverTimestamp(), clientTime: Date.now() });
+  if (!S.settings || !S.settings.activeSessionId) await setActive(ref.id);
+  S.T.viewSid = ref.id;
+  S.T.nf.name = "";
+  await loadTeacher();
+}
+async function setActive(id) {
+  await S.F.setDoc(dref("settings", "app"), { activeSessionId: id, updatedAt: S.F.serverTimestamp() }, { merge: true });
+  S.settings = Object.assign({}, S.settings, { activeSessionId: id });
+}
+
+/* ---------- 名單 ---------- */
+async function ensureAnon(email) {
+  const T = S.T;
+  if (T.anon[email]) return T.anon[email];
+  const used = new Set(Object.values(T.anon));
+  let id;
+  const span = used.size < 700 ? [100, 900] : [1000, 9000];
+  do { id = "A-" + (Math.floor(Math.random() * span[1]) + span[0]); } while (used.has(id));
+  await S.F.setDoc(dref("anonmap", email), { email, anonId: id, createdAt: S.F.serverTimestamp() });
+  T.anon[email] = id;
+  return id;
+}
+async function addRoster(email, name, groupId, lang, pm) {
+  const T = S.T;
+  email = String(email || "").trim().toLowerCase();
+  groupId = String(groupId || "").trim();
+  name = String(name || "").trim();
+  if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("Email 格式不正確：" + email);
+  if (!groupId) throw new Error("請填組別（例如 G01）：" + email);
+  if (!T.viewSid) throw new Error("請先建立場次");
+  lang = normLang(lang);
+  if (!lang) { const mate = T.roster.find((r) => r.groupId === groupId && normLang(r.lang)); lang = mate ? normLang(mate.lang) : "en"; }
+  const anonId = await ensureAnon(email);
+  await S.F.setDoc(dref("roster", rosterId(T.viewSid, email)), { sessionId: T.viewSid, email, name, groupId, pm: !!pm, lang, anonId, createdAt: S.F.serverTimestamp() });
+}
+async function importRoster() {
+  const rows = parseCsv(S.T.imp);
+  if (!rows.length) throw new Error("請先貼上名單（欄位：email、姓名、組別、目標語言、PM）");
+  if (!String(rows[0][0] || "").includes("@")) rows.shift();
+  const errs = [];
+  let ok = 0;
+  for (const r of rows) {
+    try {
+      if (r[3] && !normLang(r[3])) throw new Error("語言看不懂：" + r[3] + "（請寫 英文、日文、德文）");
+      await addRoster(r[0], r[1], r[2], r[3], isPmCell(r[4]));
+      ok++;
+    } catch (e) { errs.push((r[0] || "（空白）") + "：" + e.message); }
+  }
+  S.T.imp = "";
+  await loadTeacher();
+  if (errs.length) toast("匯入 " + ok + " 筆，" + errs.length + " 筆失敗：\n" + errs.slice(0, 5).join("\n"), "bad");
+  else toast("已匯入 " + ok + " 筆", "ok");
+}
+function groupChecks() {
+  const m = {};
+  S.T.roster.forEach((r) => { (m[r.groupId] = m[r.groupId] || []).push(r); });
+  return Object.keys(m).sort().map((g) => {
+    const rs = m[g], problems = [];
+    const langs = new Set(rs.map((r) => normLang(r.lang) || "en"));
+    if (langs.size > 1) problems.push("成員的目標語言不一致");
+    const pms = rs.filter((r) => r.pm).length;
+    if (pms === 0) problems.push("還沒有指定 PM");
+    if (pms > 1) problems.push("PM 有 " + pms + " 人（只能 1 人）");
+    const gr = S.T.groupRoles.find((x) => x.groupId === g);
+    return { g, problems, n: rs.length, lang: langs.size === 1 ? LANGS[[...langs][0]].short : "",
+      roles: gr ? "PM 已指定角色：Translator " + (gr.translators || []).length + " 人、Reviewer " + (gr.reviewers || []).length + " 人" : "PM 尚未指定角色" };
+  });
+}
+
+/* ---------- 預設術語（老師預放，可含故意錯誤） ---------- */
+async function addSeed(lang, src, tgt, trap) {
+  const T = S.T;
+  src = String(src || "").trim(); tgt = String(tgt || "").trim();
+  if (!T.viewSid) throw new Error("請先建立場次");
+  if (!src || !tgt) throw new Error("中文與譯文都要填");
+  await S.F.addDoc(col("seedTerms"), { sessionId: T.viewSid, lang, src, tgt, trap: !!trap, distributedTo: [], createdAt: S.F.serverTimestamp(), clientTime: Date.now() });
+}
+async function importSeeds() {
+  const T = S.T;
+  const rows = parseCsv(T.simp).filter((r) => r[0] && r[1] && !/^(zh|中文|原文)$/i.test(r[0]));
+  if (!rows.length) throw new Error("沒有可匯入的列（欄位：中文、譯文、故意錯誤請在第三欄填 x）");
+  for (const r of rows) await addSeed(T.sl, r[0], r[1], /^(x|是|y|yes|1|錯)$/i.test(String(r[2] || "").trim()));
+  T.simp = "";
+  await loadTeacher();
+  return rows.length;
+}
+/* 發放：把預設術語複製到各組的術語表（每個詞每組只發一次；被學生刪掉的不會再補回） */
+async function distributeSeeds() {
+  const T = S.T, F = S.F;
+  const groups = {};
+  T.roster.forEach((r) => { groups[r.groupId] = normLang(r.lang) || "en"; });
+  let n = 0;
+  for (const seed of T.seeds) {
+    const done = new Set(seed.distributedTo || []);
+    const todo = Object.keys(groups).filter((g) => groups[g] === seed.lang && !done.has(g));
+    if (!todo.length) continue;
+    const batch = F.writeBatch(S.db);
+    todo.forEach((g) => {
+      batch.set(dref("groupGlossary", "seed~" + T.viewSid + "~" + g + "~" + seed.id), {
+        sessionId: T.viewSid, groupId: g, lang: seed.lang, anonId: "TEACHER", src: seed.src, tgt: seed.tgt, origTgt: seed.tgt, seedId: seed.id,
+        createdAt: F.serverTimestamp(), clientTime: Date.now()
+      });
+      n++;
+    });
+    batch.update(dref("seedTerms", seed.id), { distributedTo: [...done, ...todo], distributedAt: Date.now() });
+    await batch.commit();
+  }
+  await loadTeacher();
+  return n;
+}
+
+/* ---------- 題庫 ---------- */
+async function saveBank() {
+  const T = S.T, f = T.bf;
+  const title = f.title.trim(), text = f.text.trim();
+  if (!T.viewSid) throw new Error("請先建立場次");
+  if (!title || !text) throw new Error("題目名稱與原文都要填");
+  if (f.id) await S.F.setDoc(dref("bank", f.id), { title, sourceText: text, updatedAt: S.F.serverTimestamp() }, { merge: true });
+  else await S.F.addDoc(col("bank"), { sessionId: T.viewSid, title, sourceText: text, released: false, createdAt: S.F.serverTimestamp(), clientTime: Date.now() });
+  T.bf = { id: "", title: "", text: "" };
+  await loadTeacher();
+}
+
+/* ---------- 研究資料 ---------- */
+async function loadResearch() {
+  const T = S.T, F = S.F;
+  T.loadingData = true; rr();
+  try {
+    const sid = F.where("sessionId", "==", T.viewSid);
+    const rows = async (c) => (await F.getDocs(F.query(col(c), sid))).docs.map((d) => ({ id: d.id, ...d.data() }));
+    const tasks = (await rows("tasks")).sort(byTime);
+    const events = (await rows("events")).sort(byTime);
+    const ai = (await rows("aiLogs")).sort(byTime);
+    const refl = await rows("reflections");
+    const gloss = (await rows("groupGlossary")).sort(byTime);
+    const versions = [];
+    for (const t of tasks) {
+      const snap = await F.getDocs(F.collection(S.db, "tasks", t.id, "versions"));
+      snap.docs.forEach((d) => versions.push({ id: d.id, ...d.data() }));
+    }
+    versions.sort(byTime);
+    T.data = { tasks, events, ai, refl, gloss, versions, at: Date.now() };
+  } finally { T.loadingData = false; rr(); }
+}
+
+function fmtDur(ms) {
+  if (ms == null || isNaN(ms)) return "";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return s + " 秒";
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + " 分 " + (s % 60) + " 秒";
+  return Math.floor(m / 60) + " 小時 " + (m % 60) + " 分";
+}
+
+/* 流程比對：把「PM 派發時排的流程」和「實際發生的順序」逐步對照 */
+const execEvents = (ev) => ev.filter((e) => e.type === "submit" || e.type === "return" || e.type === "pm_confirm");
+function analyzeFlow(task, allEvents) {
+  const ev = allEvents.filter((e) => e.taskId === task.id).sort(byTime);
+  const steps = [];
+  const push = (step, detail, kind, flag) => steps.push({ step, detail, kind, flag });
+  const label = (k) => (STEP_KINDS[k] ? STEP_KINDS[k].label : k);
+  const disp = ev.find((e) => e.type === "dispatch");
+  push("0 派發", disp ? "PM（" + disp.anonId + "）派發，" + fmtFull(recMs(disp)) : "找不到派發紀錄", disp && ev[0] === disp ? "ok" : "warn", disp && ev[0] === disp ? "符合" : "需人工確認");
+  const ex = execEvents(ev);
+  const used = new Set();
+  let prevMs = disp ? recMs(disp) : 0;
+  (task.initialPlan || []).forEach((p, j) => {
+    const k = ex.findIndex((e, i) => !used.has(i) && e.kind === p.kind && e.anonId === p.anonId);
+    const name = (j + 1) + " " + label(p.kind) + "（預定：" + p.anonId + "）";
+    if (k >= 0) {
+      used.add(k);
+      const e = ex[k];
+      push(name, e.anonId + " 完成 " + (e.vLabel || "") + "，" + fmtFull(recMs(e)) + (prevMs ? "，距上一步 " + fmtDur(recMs(e) - prevMs) : ""), "ok", "符合");
+      prevMs = recMs(e);
+    } else push(name, task.status === "done" ? "沒有找到對應的完成紀錄（實際做的人或順序和預定不同）" : "尚未輪到或進行中", task.status === "done" ? "warn" : "off", task.status === "done" ? "需人工確認" : "進行中");
+  });
+  const extra = ex.filter((e, i) => !used.has(i));
+  const nRet = ev.filter((e) => e.type === "return").length;
+  const nEdit = ev.filter((e) => e.type === "plan_edit").length;
+  push("額外步驟", "送回 " + nRet + " 次、PM 調整流程 " + nEdit + " 次、未在預定流程內的完成紀錄 " + extra.length + " 筆", nRet + nEdit > 3 ? "warn" : "ok", nRet + nEdit > 3 ? "往返偏多" : (nRet + nEdit ? "有調整" : "符合"));
+  const pc = ev.find((e) => e.type === "pm_confirm");
+  if (pc) push("PM 繳交", pc.anonId + " 繳交，" + fmtFull(recMs(pc)) + (disp ? "；全程 " + fmtDur(recMs(pc) - recMs(disp)) : ""), "ok", "符合");
+  else push("PM 繳交", "尚未完成", "off", "進行中");
+  const anons = [...new Set(ev.filter((e) => e.type !== "dispatch").map((e) => e.anonId))].sort();
+  push("補充：AI 與術語表使用", anons.map((a) => a + "：提問 " + ev.filter((e) => e.anonId === a && e.type === "ai_prompt").length + "、插入 AI " + ev.filter((e) => e.anonId === a && e.type === "ai_insert").length + "、插入術語 " + ev.filter((e) => e.anonId === a && e.type === "glossary_insert").length).join("；"), "", "僅供參考");
+  return steps;
+}
+
+/* ---------- KPI 彙整（全部由系統已有的紀錄算出，不含主觀判斷） ---------- */
+const r1 = (x) => (x == null || isNaN(x) ? "" : Math.round(x * 10) / 10);
+function computeKpi(d) {
+  const sname = sessionName(S.T.viewSid);
+  const vBy = {};
+  d.versions.forEach((v) => { (vBy[v.taskId] = vBy[v.taskId] || []).push(v); });
+  const taskRows = d.tasks.map((t) => {
+    const vs = (vBy[t.id] || []).sort(byTime);
+    const evs = d.events.filter((e) => e.taskId === t.id);
+    const start = t.clientTime || recMs(t);
+    const end = t.status === "done" ? (tms(t.confirmedAt) || (vs.length ? recMs(vs[vs.length - 1]) : 0)) : 0;
+    const stepsDone = (t.plan || []).filter((x) => x.done).length;
+    return {
+      session: sname, groupId: t.groupId, taskCode: t.code, lang: t.lang, status: t.status,
+      sourceChars: (t.sourceText || "").length, finalChars: (t.finalText || "").length,
+      stepsPlanned: (t.initialPlan || []).length, stepsDone, versions: vs.length,
+      returns: t.reworkCount || 0, reworkRate: stepsDone ? r1((t.reworkCount || 0) / stepsDone * 100) : "",
+      planEdits: evs.filter((e) => e.type === "plan_edit").length, totalMin: end && start ? r1((end - start) / 60000) : ""
+    };
+  });
+  const people = {};
+  const P = (a, g) => (people[a] = people[a] || { session: sname, groupId: g, anonId: a, translate: 0, revise: 0, review: 0, final: 0, chars: 0, workMs: 0, turnMs: 0, pickMs: 0, pickN: 0, returns: 0, glossAdd: 0, glossEdit: 0, glossDel: 0, aiPrompts: 0, aiInserts: 0, glossInserts: 0 });
+  d.versions.forEach((v) => {
+    const p = P(v.anonId, v.groupId);
+    p[v.kind] = (p[v.kind] || 0) + 1;
+    p.chars += v.chars || (v.content || "").length;
+    const end = v.clientTime || recMs(v);
+    if (v.openedAt) p.workMs += Math.max(0, end - v.openedAt);
+    if (v.startedAt) p.turnMs += Math.max(0, end - v.startedAt);
+    if (v.startedAt && v.openedAt) { p.pickMs += Math.max(0, v.openedAt - v.startedAt); p.pickN++; }
+  });
+  d.events.forEach((e) => {
+    if (!e.anonId || e.type === "reflection") return;
+    const p = P(e.anonId, e.groupId);
+    if (e.type === "return") p.returns++;
+    if (e.type === "glossary_add") p.glossAdd++;
+    if (e.type === "glossary_edit") p.glossEdit++;
+    if (e.type === "glossary_delete") p.glossDel++;
+    if (e.type === "ai_insert") p.aiInserts++;
+    if (e.type === "glossary_insert") p.glossInserts++;
+  });
+  d.ai.forEach((l) => { P(l.anonId, l.groupId).aiPrompts++; });
+  const personRows = Object.values(people).map((p) => {
+    const hrs = p.workMs / 3600000;
+    return {
+      session: p.session, groupId: p.groupId, anonId: p.anonId, translateSteps: p.translate, reviseSteps: p.revise, reviewSteps: p.review, finalSteps: p.final,
+      versions: p.translate + p.revise + p.review + p.final, charsHandled: p.chars, workMin: r1(p.workMs / 60000), turnaroundMin: r1(p.turnMs / 60000),
+      charsPerHour: hrs > 0 ? Math.round(p.chars / hrs) : "", avgPickupMin: p.pickN ? r1(p.pickMs / p.pickN / 60000) : "",
+      returnsIssued: p.returns, glossaryAdded: p.glossAdd, glossaryEdited: p.glossEdit, glossaryDeleted: p.glossDel,
+      aiPrompts: p.aiPrompts, aiInserts: p.aiInserts, glossaryInserts: p.glossInserts
+    };
+  }).sort((a, b) => (a.groupId + a.anonId).localeCompare(b.groupId + b.anonId));
+  const groups = [...new Set(d.tasks.map((t) => t.groupId))].sort();
+  const groupRows = groups.map((g) => {
+    const ts = taskRows.filter((x) => x.groupId === g);
+    const done = ts.filter((x) => x.status === "done");
+    const sum = (k) => ts.reduce((a, x) => a + (+x[k] || 0), 0);
+    const steps = sum("stepsDone");
+    return {
+      session: sname, groupId: g, tasks: ts.length, tasksDone: done.length, versions: sum("versions"), returns: sum("returns"),
+      reworkRate: steps ? r1(sum("returns") / steps * 100) : "", planEdits: sum("planEdits"),
+      avgTotalMin: done.length ? r1(done.reduce((a, x) => a + (+x.totalMin || 0), 0) / done.length) : "",
+      glossaryTerms: d.gloss.filter((x) => x.groupId === g).length,
+      glossaryAddedByStudents: d.events.filter((e) => e.groupId === g && e.type === "glossary_add").length
+    };
+  });
+  return { taskRows, personRows, groupRows };
+}
+/* 老師預放的術語：各組有沒有發現並處理 */
+function seedStatus(d) {
+  const T = S.T, out = [];
+  const groups = {};
+  T.roster.forEach((r) => { groups[r.groupId] = normLang(r.lang) || "en"; });
+  T.seeds.forEach((sd) => {
+    (sd.distributedTo || []).forEach((g) => {
+      const doc = d.gloss.find((x) => x.groupId === g && x.seedId === sd.id);
+      const ev = d.events.filter((e) => e.groupId === g && e.seedId === sd.id);
+      const del = ev.find((e) => e.type === "glossary_delete");
+      const ed = ev.filter((e) => e.type === "glossary_edit");
+      const st = doc ? (doc.tgt !== sd.tgt ? "已修改" : "未更動") : (del ? "已刪除" : "已不存在");
+      out.push({ session: sessionName(T.viewSid), groupId: g, lang: sd.lang, src: sd.src, seededTgt: sd.tgt, trap: sd.trap ? "是（故意放錯）" : "否", status: st, currentTgt: doc ? doc.tgt : "", edits: ed.length,
+        editedBy: ed.map((e) => e.anonId).join(" "), firstChangeMin: (() => { const f = (del || ed[0]); return f && sd.distributedAt ? r1((recMs(f) - sd.distributedAt) / 60000) : ""; })() });
+    });
+  });
+  return out;
+}
+
+function dataRows(set) {
+  const T = S.T, d = T.data;
+  if (!d) return [];
+  const sname = sessionName(T.viewSid);
+  const ts = (r) => { const m = recMs(r); return m ? new Date(m).toISOString() : ""; };
+  const base = (r) => Object.assign({}, flatten(r), { session: sname, timestamp: ts(r) });
+  if (set === "events") return d.events.map(base);
+  if (set === "versions") return d.versions.map(base);
+  if (set === "aiLogs") return d.ai.map(base);
+  if (set === "reflections") return d.refl.map((r) => Object.assign(base(r), { answers: JSON.stringify(r.answers || []) }));
+  if (set === "groupGlossary") return (d.gloss || []).map(base);
+  if (set === "tasks") return d.tasks.map((t) => { const x = base(t); delete x.sourceText; delete x.finalText; x.plan = (t.plan || []).map((p) => p.kind + ":" + p.anonId).join(" > "); x.initialPlan = (t.initialPlan || []).map((p) => p.kind + ":" + p.anonId).join(" > "); return Object.assign(x, { sourceChars: (t.sourceText || "").length, finalChars: (t.finalText || "").length }); });
+  if (set === "flow") {
+    const out = [];
+    d.tasks.forEach((t) => analyzeFlow(t, d.events).forEach((s) => out.push({ session: sname, groupId: t.groupId, taskCode: t.code, step: s.step, flag: s.flag, detail: s.detail })));
+    return out;
+  }
+  if (set === "kpiPerson") return computeKpi(d).personRows;
+  if (set === "kpiTask") return computeKpi(d).taskRows;
+  if (set === "kpiGroup") return computeKpi(d).groupRows;
+  if (set === "seedTerms") return seedStatus(d);
+  return [];
+}
+const EXPORT_SETS = [
+  ["events", "事件紀錄（交接、提交、AI 使用）"], ["versions", "各次提交的版本內容"], ["aiLogs", "AI prompt 與回應"],
+  ["reflections", "課後反思"], ["groupGlossary", "各組術語表（最終留存的詞條）"], ["tasks", "任務摘要（含預定與實際流程）"], ["flow", "流程比對結果"],
+  ["kpiPerson", "KPI：個人"], ["kpiTask", "KPI：每一段任務"], ["kpiGroup", "KPI：各組"], ["seedTerms", "老師預放術語：各組處理結果"]
+];
+function exportFields(rows) {
+  const pref = ["session", "groupId", "lang", "indTaskId", "taskCode", "role", "anonId", "kind", "stepIdx", "toAnon", "timestamp", "type", "vLabel", "kind", "toRole", "mode", "model", "prompt", "response", "src", "tgt", "modelOriginal", "convertedToTraditional", "content", "detail"];
+  const all = new Set();
+  rows.forEach((r) => Object.keys(r).forEach((k) => all.add(k)));
+  const rest = [...all].filter((k) => !pref.includes(k)).sort();
+  return pref.filter((k) => all.has(k)).concat(rest);
+}
+function doExport() {
+  const T = S.T;
+  const rows = dataRows(T.exp.set);
+  if (!rows.length) throw new Error("這個資料集目前沒有資料。請先按「重新載入資料」。");
+  const fields = exportFields(rows).filter((f) => !T.exp.off[T.exp.set + ":" + f]);
+  if (!fields.length) throw new Error("至少要選一個欄位");
+  const pick = (r) => { const o = {}; fields.forEach((f) => { o[f] = r[f]; }); return o; };
+  const stamp = new Date().toISOString().slice(0, 10);
+  const name = T.exp.set + "-" + sessionName(T.viewSid) + "-" + stamp;
+  if (T.exp.fmt === "csv") download(name + ".csv", toCsv(rows.map(pick), fields), "text/csv");
+  else download(name + ".json", JSON.stringify(rows.map(pick), null, 2), "application/json");
+}
+function exportMapping() {
+  const T = S.T;
+  if (!confirm("對照表含有學生的 Email 與匿名編號，只能教師保管，不能放進研究資料。確定要下載嗎？")) return;
+  const rows = T.roster.map((r) => ({ session: sessionName(T.viewSid), groupId: r.groupId, name: r.name || "", pm: r.pm ? "PM" : "", anonId: r.anonId, email: r.email }));
+  download("對照表-" + sessionName(T.viewSid) + ".csv", toCsv(rows, ["session", "groupId", "name", "pm", "anonId", "email"]), "text/csv");
+}
+
+/* ===================== 畫面 ===================== */
+function viewTeacher() {
+  const T = S.T;
+  const tabs = [["roster", "場次與名單"], ["bank", "題庫"], ["seeds", "預設術語"], ["glossary", "各組術語表"], ["kpi", "KPI 彙整"], ["data", "研究資料"], ["export", "匯出"]];
+  const body = { roster: tRoster, bank: tBank, seeds: tSeeds, glossary: tGlossary, kpi: tKpi, data: tData, export: tExport }[T.tab]();
+  return h("div", { class: "wrap" },
+    h("header", { class: "top" },
+      h("div", { class: "l" }, h("h1", null, "教師後台"),
+        h("div", { class: "chips" }, chip(S.email, true), chip("管理場次：" + (T.viewSid ? sessionName(T.viewSid) : "（尚未建立）")),
+          T.viewSid && S.settings && S.settings.activeSessionId === T.viewSid ? h("span", { class: "badge ok" }, "學生目前進入的場次") : null)),
+      h("div", { class: "btns" }, h("button", { class: "plain", onclick: () => act(refreshTeacher, "已更新") }, "重新整理"), h("button", { class: "plain", onclick: doLogout }, "登出"))),
+    h("div", { class: "tabs" }, tabs.map(([k, n]) => h("button", { class: "tab" + (T.tab === k ? " on" : ""), onclick: () => { T.tab = k; if ((k === "data" || k === "kpi") && !T.data && T.viewSid) act(loadResearch); else rr(); } }, n))),
+    body);
+}
+
+function tRoster() {
+  const T = S.T;
+  const refl = {};
+  T.reflections.forEach((r) => { refl[r.id.split("~")[1]] = r; });
+  const checks = groupChecks();
+  const upd = (r, patch) => act(async () => { await S.F.setDoc(dref("roster", r.id), patch, { merge: true }); await loadTeacher(); });
+  return h("div", { style: "display:flex;flex-direction:column;gap:20px" },
+    h("div", { class: "card" },
+      h("h2", null, "場次"),
+      T.sessions.length === 0 ? h("p", { class: "sub" }, "還沒有場次。先建立一個，例如「期中實作」。") : null,
+      T.sessions.map((s) => h("div", { class: "row" },
+        h("div", { class: "l" }, h("span", null, s.name || s.id), h("small", null, s.id === T.viewSid ? "目前管理中" : "")),
+        h("div", { class: "btns" },
+          S.settings && S.settings.activeSessionId === s.id ? h("span", { class: "badge ok" }, "學生進入中") : h("button", { class: "ghost sm", disabled: S.busy, onclick: () => { if (confirm("把「" + (s.name || s.id) + "」設為學生進入的場次嗎？")) act(async () => { await setActive(s.id); }, "已設定"); } }, "設為學生進入的場次"),
+          s.id !== T.viewSid ? h("button", { class: "plain sm", onclick: () => act(async () => { T.viewSid = s.id; T.data = null; await loadTeacher(); }) }, "管理這個場次") : null))),
+      h("div", { class: "grid" },
+        h("div", { class: "fld" }, h("label", { for: "ns" }, "新增場次"), h("input", { type: "text", id: "ns", value: T.nf.name, placeholder: "例如：期中實作", oninput: (e) => { T.nf.name = e.target.value; } })),
+        h("div", { class: "fld", style: "justify-content:flex-end" }, h("button", { disabled: S.busy, onclick: () => act(createSession, "已建立場次") }, "建立場次")))),
+    h("div", { class: "card" },
+      h("h2", null, "名單（" + (T.viewSid ? sessionName(T.viewSid) : "請先建立場次") + "）"),
+      roleDutyBox(),
+      h("p", { class: "sub" }, "老師只需要填：Google 帳號、姓名、組別、目標語言，以及每組哪一位是 PM。Translator 和 Reviewer 由各組 PM 登入後自己指定，老師不用填。"),
+      h("div", { class: "grid" },
+        h("div", { class: "fld" }, h("label", { for: "re" }, "學生 Google 帳號"), h("input", { type: "email", id: "re", value: T.rf.email, placeholder: "student@example.edu", oninput: (e) => { T.rf.email = e.target.value; } })),
+        h("div", { class: "fld" }, h("label", { for: "rn" }, "姓名（組員之間顯示用）"), h("input", { type: "text", id: "rn", value: T.rf.name, placeholder: "王小明", oninput: (e) => { T.rf.name = e.target.value; } })),
+        h("div", { class: "fld" }, h("label", { for: "rg" }, "組別"), h("input", { type: "text", id: "rg", value: T.rf.group, placeholder: "G01", oninput: (e) => { T.rf.group = e.target.value; } })),
+        h("div", { class: "fld" }, h("label", { for: "rl" }, "目標語言（空白＝沿用同組）"), h("select", { id: "rl", value: T.rf.lang, onchange: (e) => { T.rf.lang = e.target.value; } }, h("option", { value: "" }, "沿用同組／預設英文"), LANG_KEYS.map((k) => h("option", { value: k }, LANGS[k].short)))),
+        h("div", { class: "fld" }, h("label", { class: "chk", for: "rp" }, h("input", { type: "checkbox", id: "rp", checked: T.rf.pm, onchange: (e) => { T.rf.pm = e.target.checked; } }), "這位是本組 PM")),
+        h("div", { class: "fld", style: "justify-content:flex-end" }, h("button", { disabled: S.busy || !T.viewSid, onclick: () => act(async () => { await addRoster(T.rf.email, T.rf.name, T.rf.group, T.rf.lang, T.rf.pm); T.rf.email = ""; T.rf.name = ""; T.rf.pm = false; await loadTeacher(); }, "已加入名單") }, "加入名單"))),
+      h("details", null, h("summary", null, "用貼上的方式批次匯入（Excel 或 CSV）"),
+        h("p", { class: "hint" }, "每列一位，欄位依序是：email、姓名、組別、目標語言（英文、日文、德文）、PM（是 PM 的人在這一欄寫 PM，其他人留空）。可以直接從 Excel 或 Google 試算表複製貼上。同一組的目標語言要一樣，只有一位 PM。"),
+        h("textarea", { id: "imp", value: T.imp, placeholder: "student1@example.edu\t王小明\tG01\t英文\tPM\nstudent2@example.edu\t李小華\tG01\t英文", oninput: (e) => { T.imp = e.target.value; } }),
+        h("div", { class: "btns" }, h("button", { disabled: S.busy || !T.viewSid, onclick: () => act(importRoster) }, "匯入"))),
+      checks.length ? h("div", { class: "chips" }, checks.map((c) => h("span", { class: "badge " + (c.problems.length ? "warn" : "ok") }, c.g + (c.lang ? "（" + c.lang + "）" : "") + "：" + c.n + " 人，" + (c.problems.length ? c.problems.join("、") : "1 位 PM") + "；" + c.roles))) : null,
+      T.roster.length === 0 ? h("p", { class: "sub" }, "名單還是空的。") :
+        h("div", { class: "tablewrap" }, h("table", null,
+          h("thead", null, h("tr", null, ["Google 帳號", "姓名", "組別", "PM", "目標語言", "角色（PM 指定）", "匿名編號", "反思", ""].map((x) => h("th", null, x)))),
+          h("tbody", null, T.roster.map((r) => {
+            const rf = refl[r.email];
+            const gr = T.groupRoles.find((x) => x.groupId === r.groupId);
+            const rl = (r.pm ? ["PM"] : []).concat(gr && (gr.translators || []).includes(r.anonId) ? ["Translator"] : [], gr && (gr.reviewers || []).includes(r.anonId) ? ["Reviewer"] : []);
+            return h("tr", null,
+              h("td", { class: "m" }, r.email),
+              h("td", null, h("input", { type: "text", style: "min-width:90px", value: r.name || "", onchange: (e) => upd(r, { name: e.target.value.trim() }) })),
+              h("td", null, h("input", { type: "text", style: "min-width:80px", value: r.groupId, onchange: (e) => upd(r, { groupId: e.target.value.trim() }) })),
+              h("td", null, h("input", { type: "checkbox", checked: !!r.pm, onchange: (e) => upd(r, { pm: e.target.checked }) })),
+              h("td", null, h("select", { value: normLang(r.lang) || "en", onchange: (e) => upd(r, { lang: e.target.value }) }, LANG_KEYS.map((k) => h("option", { value: k }, LANGS[k].short)))),
+              h("td", null, rl.length ? rl.map((x) => h("span", { class: "badge ok" }, x)) : h("span", { class: "badge warn" }, gr ? "未指定" : "PM 尚未指定")),
+              h("td", { class: "m" }, r.anonId),
+              h("td", null, h("span", { class: "badge " + (rf ? "ok" : "warn") }, rf ? "已繳交" : "尚未繳交")),
+              h("td", null, h("button", { class: "danger sm", onclick: () => { if (confirm("從名單移除 " + r.email + "？")) act(async () => { await S.F.deleteDoc(dref("roster", r.id)); await loadTeacher(); }); } }, "移除")));
+          })))),
+      h("div", { class: "btns" }, h("button", { class: "ghost", disabled: !T.roster.length, onclick: exportMapping }, "下載對照表（含 Email，請妥善保管）"))));
+}
+
+function tBank() {
+  const T = S.T, f = T.bf;
+  return h("div", { style: "display:flex;flex-direction:column;gap:20px" },
+    h("div", { class: "card" },
+      h("h2", null, f.id ? "編輯題目" : "新增題目"),
+      h("p", { class: "sub" }, "題目屬於「" + (T.viewSid ? sessionName(T.viewSid) : "（請先建立場次）") + "」。釋出後，該場次的 PM 才看得到並能派發。"),
+      h("label", { for: "bt" }, "題目名稱"),
+      h("input", { type: "text", id: "bt", value: f.title, oninput: (e) => { f.title = e.target.value; } }),
+      h("label", { for: "bx" }, "中文原文（所有組別都翻這一份，各組翻成自己的目標語言）"),
+      h("textarea", { id: "bx", value: f.text, oninput: (e) => { f.text = e.target.value; } }),
+      h("div", { class: "btns" },
+        h("button", { disabled: S.busy || !T.viewSid, onclick: () => act(saveBank, "已儲存") }, f.id ? "更新題目" : "新增題目"),
+        f.id ? h("button", { class: "plain", onclick: () => { T.bf = { id: "", title: "", text: "" }; rr(); } }, "取消編輯") : null)),
+    h("div", { class: "card" },
+      h("h2", null, "題庫"),
+      T.bank.length === 0 ? h("p", { class: "sub" }, "這個場次還沒有題目。") : null,
+      T.bank.map((b) => h("div", { class: "box" },
+        h("div", { class: "top" }, h("h3", null, b.title), h("span", { class: "badge " + (b.released ? "ok" : "") }, b.released ? "已釋出" : "未釋出")),
+        h("div", { class: "txt", style: "white-space:pre-wrap;max-height:140px;overflow:auto" }, b.sourceText),
+        h("div", { class: "btns" },
+          h("button", { class: b.released ? "plain sm" : "sm", onclick: () => act(async () => { await S.F.setDoc(dref("bank", b.id), { released: !b.released }, { merge: true }); await loadTeacher(); }) }, b.released ? "收回" : "釋出給 PM"),
+          h("button", { class: "ghost sm", onclick: () => { T.bf = { id: b.id, title: b.title, text: b.sourceText }; rr(); window.scrollTo(0, 0); } }, "編輯"),
+          h("button", { class: "danger sm", onclick: () => { if (confirm("刪除題目「" + b.title + "」？已經派發的任務不受影響。")) act(async () => { await S.F.deleteDoc(dref("bank", b.id)); await loadTeacher(); }); } }, "刪除"))))));
+}
+
+function tSeeds() {
+  const T = S.T, sf = T.sf;
+  const L = LANGS[T.sl];
+  const mine = T.seeds.filter((x) => x.lang === T.sl);
+  const groupsOf = (lang) => [...new Set(T.roster.filter((r) => (normLang(r.lang) || "en") === lang).map((r) => r.groupId))].sort();
+  const pending = T.seeds.reduce((a, sd) => a + groupsOf(sd.lang).filter((g) => !(sd.distributedTo || []).includes(g)).length, 0);
+  return h("div", { style: "display:flex;flex-direction:column;gap:20px" },
+    h("div", { class: "card" },
+      h("h2", null, "預設術語（老師預放）"),
+      h("p", { class: "sub" }, "老師可以先放幾個術語給各組當起點，不用放完整的表。其中可以故意放一兩個錯的，看各組的 PM 和 Reviewer 會不會發現並修改。學生只看到「教師提供」的標記，不知道哪一筆是故意放錯的。"),
+      h("div", { class: "grid" },
+        h("div", { class: "fld" }, h("label", { for: "sl" }, "語言"), h("select", { id: "sl", value: T.sl, onchange: (e) => { T.sl = e.target.value; sf.lang = e.target.value; rr(); } }, LANG_KEYS.map((k) => h("option", { value: k }, LANGS[k].short)))),
+        h("div", { class: "fld" }, h("label", { for: "ss" }, "中文"), h("input", { type: "text", id: "ss", value: sf.src, oninput: (e) => { sf.src = e.target.value; } })),
+        h("div", { class: "fld" }, h("label", { for: "st" }, L.name + "譯法"), h("input", { type: "text", id: "st", value: sf.tgt, oninput: (e) => { sf.tgt = e.target.value; } })),
+        h("div", { class: "fld" }, h("label", { class: "chk", for: "sx" }, h("input", { type: "checkbox", id: "sx", checked: sf.trap, onchange: (e) => { sf.trap = e.target.checked; } }), "這筆是故意放錯的")),
+        h("div", { class: "fld", style: "justify-content:flex-end" }, h("button", { id: "seed-add", disabled: S.busy || !T.viewSid, onclick: () => act(async () => { await addSeed(T.sl, sf.src, sf.tgt, sf.trap); sf.src = ""; sf.tgt = ""; sf.trap = false; await loadTeacher(); }, "已新增") }, "新增"))),
+      h("details", null, h("summary", null, "從 Excel 貼上多筆（目前選的語言：" + L.short + "）"),
+        h("p", { class: "hint" }, "三欄：中文、譯法、故意錯誤（是故意放錯的就在第三欄寫 x，其他留空）。"),
+        h("textarea", { id: "simp", value: T.simp, placeholder: "晶圓\t" + ({ en: "wafer", ja: "ウェハー", de: "Wafer" }[T.sl]) + "\n蝕刻\t" + ({ en: "deposition", ja: "成膜", de: "Abscheidung" }[T.sl]) + "\tx", oninput: (e) => { T.simp = e.target.value; } }),
+        h("div", { class: "btns" }, h("button", { disabled: S.busy || !T.viewSid, onclick: () => act(async () => { const n = await importSeeds(); toast("已匯入 " + n + " 筆", "ok"); }) }, "匯入")))),
+    h("div", { class: "card" },
+      h("h2", null, L.short + " 的預設術語（" + mine.length + " 筆）"),
+      mine.length === 0 ? h("p", { class: "sub" }, "還沒有。") : null,
+      mine.map((sd) => h("div", { class: "row" },
+        h("div", { class: "l" }, h("span", null, sd.src + " → " + sd.tgt + (sd.trap ? "　（故意放錯）" : "")),
+          h("small", null, (sd.distributedTo || []).length ? "已發放給：" + sd.distributedTo.join("、") : "尚未發放")),
+        h("button", { class: "danger sm", onclick: () => { if (confirm("刪除這筆預設術語？已經發放給各組的不會被收回。")) act(async () => { await S.F.deleteDoc(dref("seedTerms", sd.id)); await loadTeacher(); }); } }, "刪除")))),
+    h("div", { class: "card " + (pending ? "warn" : "") },
+      h("h2", null, "發放給各組"),
+      h("p", { class: "sub" }, "按下後，每個預設術語會複製到「該語言的每一組」的術語表（依名單的組別與語言）。每個詞每組只會發一次；學生刪掉的不會補回來。請在學生開始操作前發放。"),
+      h("p", null, pending ? "目前還有 " + pending + " 組次尚未發放。" : "目前沒有待發放的項目。"),
+      h("div", { class: "btns" }, h("button", { id: "seed-go", disabled: S.busy || !pending, onclick: () => { if (confirm("確定要把預設術語發放給各組嗎？")) act(async () => { const n = await distributeSeeds(); toast("已發放 " + n + " 筆", "ok"); }); } }, "發放給各組"))));
+}
+
+function tGlossary() {
+  const T = S.T;
+  const groups = {};
+  T.gloss.forEach((g) => { (groups[g.groupId] = groups[g.groupId] || []).push(g); });
+  const ids = Object.keys(groups).sort();
+  const noTerms = [...new Set(T.roster.map((r) => r.groupId))].filter((g) => !groups[g]).sort();
+  return h("div", { style: "display:flex;flex-direction:column;gap:20px" },
+    h("div", { class: "card" },
+      h("h2", null, "各組術語表（唯讀）"),
+      h("p", { class: "sub" }, "術語表由各組的 PM 和 Reviewer 在工作台維護（加上老師預放的），老師這裡只能查看。每次新增、修改、刪除都會記錄在事件紀錄裡，「匯出」可下載。"),
+      noTerms.length ? h("p", { class: "hint" }, "還沒有術語的組別：" + noTerms.join("、")) : null),
+    ids.length === 0 ? h("div", { class: "card" }, h("p", { class: "sub" }, "目前還沒有任何組別建立術語。")) : null,
+    ids.map((gid) => h("div", { class: "card" },
+      h("h2", null, gid + "（" + (LANGS[normLang(groups[gid][0].lang)] ? LANGS[normLang(groups[gid][0].lang)].short + "，" : "") + groups[gid].length + " 筆）"),
+      groups[gid].map((g) => h("div", { class: "row" }, h("div", { class: "l" }, h("span", null, g.src + (g.seedId ? "　（教師預放）" : "")), h("span", { class: "mono" }, g.tgt + (g.seedId && g.origTgt && g.origTgt !== g.tgt ? "　← 原本：" + g.origTgt : ""))))))));
+}
+
+function tKpi() {
+  const T = S.T, d = T.data;
+  if (!T.viewSid) return h("div", { class: "card" }, h("p", null, "請先建立場次。"));
+  const head = h("div", { class: "card" },
+    h("div", { class: "top" }, h("h2", null, "KPI 彙整"), h("div", { class: "btns" },
+      d ? h("span", { class: "hint" }, "載入於 " + fmtFull(d.at)) : null,
+      h("button", { disabled: T.loadingData, onclick: () => act(loadResearch) }, T.loadingData ? "載入中…" : (d ? "重新載入資料" : "載入資料")))),
+    h("p", { class: "sub" }, "全部由系統紀錄的時間與次數算出，只顯示匿名編號。時間是用「前一步完成的時間」與「這個人第一次打開這一步的時間」估算的，系統不記錄打字過程，所以「作業時間」包含中間離開或休息的時間，請當作估計值。"),
+    h("p", { class: "hint" }, "目前不含：準時率（系統沒有預定完成時間）、審校意見的逐條分類、誤改率、術語一致率、組員溝通紀錄。"));
+  if (!d) return head;
+  const k = computeKpi(d);
+  const table = (title, note, cols, rows, setName) => h("div", { class: "card" },
+    h("div", { class: "top" }, h("h2", null, title), h("button", { class: "ghost sm", disabled: !rows.length, onclick: () => { T.exp.set = setName; try { doExport(); } catch (e) { toast(e.message, "bad"); } } }, "下載 CSV")),
+    note ? h("p", { class: "hint" }, note) : null,
+    rows.length === 0 ? h("p", { class: "sub" }, "目前沒有資料。") :
+      h("div", { class: "tablewrap" }, h("table", null,
+        h("thead", null, h("tr", null, cols.map(([key, lab]) => h("th", null, lab)))),
+        h("tbody", null, rows.map((r) => h("tr", null, cols.map(([key]) => h("td", { class: "m" }, r[key] === undefined ? "" : String(r[key])))))))));
+  const ss = seedStatus(d);
+  return h("div", { style: "display:flex;flex-direction:column;gap:20px" }, head,
+    table("各組", "返工率 ＝ 送回次數 ÷ 已完成步驟數（％）。", [["groupId", "組別"], ["tasks", "任務數"], ["tasksDone", "已完成"], ["versions", "版本數"], ["returns", "送回次數"], ["reworkRate", "返工率 %"], ["planEdits", "調整流程次數"], ["avgTotalMin", "平均全程（分）"], ["glossaryTerms", "術語表筆數"], ["glossaryAddedByStudents", "學生新增術語次數"]], k.groupRows, "kpiGroup"),
+    table("個人", "處理字數 ＝ 該人所有提交版本的字數總和；每小時字數 ＝ 處理字數 ÷ 作業時間；接手時間 ＝ 輪到他到第一次打開的平均時間。", [["groupId", "組別"], ["anonId", "匿名編號"], ["translateSteps", "翻譯"], ["reviseSteps", "修改"], ["reviewSteps", "審校"], ["finalSteps", "最終檢查"], ["charsHandled", "處理字數"], ["workMin", "作業時間（分）"], ["turnaroundMin", "輪到到完成（分）"], ["charsPerHour", "每小時字數"], ["avgPickupMin", "平均接手（分）"], ["returnsIssued", "送回次數"], ["glossaryAdded", "新增術語"], ["glossaryEdited", "修改術語"], ["glossaryDeleted", "刪除術語"], ["aiPrompts", "AI 提問"], ["aiInserts", "插入 AI"], ["glossaryInserts", "插入術語"]], k.personRows, "kpiPerson"),
+    table("每一段任務", "全程 ＝ 派發到 PM 繳交。", [["groupId", "組別"], ["taskCode", "任務"], ["status", "狀態"], ["sourceChars", "原文字數"], ["finalChars", "譯文字數"], ["stepsPlanned", "預定步驟"], ["stepsDone", "已完成步驟"], ["versions", "版本數"], ["returns", "送回次數"], ["reworkRate", "返工率 %"], ["planEdits", "調整流程"], ["totalMin", "全程（分）"]], k.taskRows, "kpiTask"),
+    table("老師預放術語：各組處理結果", "「故意放錯」那幾筆最值得看：已修改／已刪除代表該組發現了問題，未更動代表沒有處理。", [["groupId", "組別"], ["src", "中文"], ["seededTgt", "預放譯法"], ["trap", "故意放錯"], ["status", "處理結果"], ["currentTgt", "目前譯法"], ["edits", "修改次數"], ["editedBy", "誰改的"], ["firstChangeMin", "發放後多久處理（分）"]], ss, "seedTerms"));
+}
+
+function tData() {
+  const T = S.T, d = T.data;
+  if (!T.viewSid) return h("div", { class: "card" }, h("p", null, "請先建立場次。"));
+  const head = h("div", { class: "card" },
+    h("div", { class: "top" }, h("h2", null, "研究資料"), h("div", { class: "btns" },
+      d ? h("span", { class: "hint" }, "載入於 " + fmtFull(d.at)) : null,
+      h("button", { disabled: T.loadingData, onclick: () => act(loadResearch) }, T.loadingData ? "載入中…" : (d ? "重新載入資料" : "載入資料")))),
+    h("p", { class: "sub" }, "只顯示匿名編號。這裡用來檢查流程是否照預定進行、學生如何使用 AI。"));
+  if (!d) return head;
+  const groups = [...new Set(d.tasks.map((t) => t.groupId))].sort();
+  const f = T.f;
+  const okG = (x) => !f.group || x.groupId === f.group;
+  const okR = (x) => !f.role || String(x.role || "").includes(f.role);
+  const tasks = d.tasks.filter(okG);
+  const okT = (x) => !f.task || x.taskId === f.task;
+  const filters = h("div", { class: "card" }, h("div", { class: "grid" },
+    h("div", { class: "fld" }, h("label", { for: "fg" }, "組別"), h("select", { id: "fg", value: f.group, onchange: (e) => { f.group = e.target.value; f.task = ""; rr(); } }, h("option", { value: "" }, "全部組別"), groups.map((g) => h("option", { value: g }, g)))),
+    h("div", { class: "fld" }, h("label", { for: "fr" }, "角色"), h("select", { id: "fr", value: f.role, onchange: (e) => { f.role = e.target.value; rr(); } }, h("option", { value: "" }, "全部角色"), ROLES.map((r) => h("option", { value: r }, r)))),
+    h("div", { class: "fld" }, h("label", { for: "ft" }, "任務"), h("select", { id: "ft", value: f.task, onchange: (e) => { f.task = e.target.value; rr(); } }, h("option", { value: "" }, "全部任務"), tasks.map((t) => h("option", { value: t.id }, t.code + " " + t.title))))));
+  const shownTasks = tasks.filter((t) => !f.task || t.id === f.task);
+  const events = d.events.filter((e) => okG(e) && okR(e) && okT(e));
+  const ai = d.ai.filter((e) => okG(e) && okR(e) && okT(e));
+  const stat = (n, label) => h("div", { class: "box", style: "flex:1 1 140px" }, h("b", { style: "font-size:24px" }, String(n)), h("span", { class: "hint" }, label));
+  const summary = h("div", { class: "grid" },
+    stat(d.tasks.length, "任務（段）"), stat(d.tasks.filter((t) => t.status === "done").length, "已完成"),
+    stat(d.ai.length, "AI 提問"), stat(d.events.filter((e) => e.type === "ai_insert").length, "插入 AI 內容次數"),
+    stat(d.refl.length, "已繳交反思"));
+  const flow = h("div", { class: "card" }, h("h2", null, "流程比對：預定 vs 實際"),
+    h("p", { class: "sub" }, "把 PM 派發時排好的流程，和實際完成的順序逐步比對。系統無法判斷的部分會標示「需人工確認」，資料已保存供後續人工編碼。"),
+    shownTasks.length === 0 ? h("p", { class: "sub" }, "沒有任務。") : null,
+    shownTasks.map((t) => h("details", { open: shownTasks.length === 1 },
+      h("summary", null, t.code + "　" + t.title + "　", h("span", { class: "badge" }, STATUS_LABEL[t.status] || t.status)),
+      analyzeFlow(t, d.events).map((s) => h("div", { class: "row" },
+        h("div", { class: "l" }, h("span", null, s.step), h("small", null, s.detail)),
+        h("span", { class: "badge " + (s.kind || "") }, s.flag))))));
+  const verTask = shownTasks.find((t) => t.id === T.cmpTask) || shownTasks[0];
+  const vs = verTask ? d.versions.filter((v) => v.taskId === verTask.id) : [];
+  const A = vs.find((v) => v.id === T.cmpA) || (vs.length > 1 ? vs[vs.length - 2] : vs[0]);
+  const B = vs.find((v) => v.id === T.cmpB) || vs[vs.length - 1];
+  const opt = (v) => h("option", { value: v.id }, v.vLabel + "（" + v.anonId + "，" + fmtShort(recMs(v)) + "）");
+  const vers = h("div", { class: "card" }, h("h2", null, "版本與差異"),
+    shownTasks.length === 0 ? h("p", { class: "sub" }, "沒有任務。") : [
+      h("div", { class: "grid" },
+        h("div", { class: "fld" }, h("label", { for: "vt" }, "任務"), h("select", { id: "vt", value: verTask.id, onchange: (e) => { T.cmpTask = e.target.value; T.cmpA = ""; T.cmpB = ""; rr(); } }, shownTasks.map((t) => h("option", { value: t.id }, t.code + " " + t.title)))),
+        h("div", { class: "fld" }, h("label", { for: "va" }, "舊版本"), h("select", { id: "va", value: A ? A.id : "", onchange: (e) => { T.cmpA = e.target.value; rr(); } }, vs.map(opt))),
+        h("div", { class: "fld" }, h("label", { for: "vb" }, "新版本"), h("select", { id: "vb", value: B ? B.id : "", onchange: (e) => { T.cmpB = e.target.value; rr(); } }, vs.map(opt)))),
+      A && B ? h("div", { class: "box" }, diffEl(A.content, B.content, langOf(verTask))) : h("p", { class: "sub" }, "這個任務還沒有提交的版本。"),
+      B && (B.aiMatch || []).length ? h("p", { class: "hint" }, "新版本與該作者 AI 回應的重合度（AI 內容有多少比例出現在這一版；僅供參考，需搭配人工判斷）：" + B.aiMatch.map((m) => Math.round(m.contained * 100) + "%").join("、")) : null]);
+  const evTable = h("div", { class: "card" }, h("h2", null, "事件紀錄（" + events.length + "）"),
+    h("div", { class: "tablewrap" }, h("table", null,
+      h("thead", null, h("tr", null, ["時間", "組別", "任務", "匿名編號", "角色", "事件", "版本", "說明"].map((x) => h("th", null, x)))),
+      h("tbody", null, events.map((e) => h("tr", null,
+        h("td", { class: "m" }, fmtShort(recMs(e))), h("td", null, e.groupId), h("td", { class: "m" }, e.taskCode), h("td", { class: "m" }, e.anonId), h("td", null, e.role),
+        h("td", null, (EVENT_LABEL[e.type] || e.type) + (e.toRole ? " → " + e.toRole : "")), h("td", { class: "m" }, e.vLabel || ""), h("td", { class: "cell" }, e.detail || "")))))));
+  const aiTable = h("div", { class: "card" }, h("h2", null, "AI 使用紀錄（" + ai.length + "）"),
+    h("div", { class: "tablewrap" }, h("table", null,
+      h("thead", null, h("tr", null, ["時間", "匿名編號", "任務", "模型", "類型", "Prompt", "AI 回應", "簡轉繁", "耗時"].map((x) => h("th", null, x)))),
+      h("tbody", null, ai.map((l) => h("tr", null,
+        h("td", { class: "m" }, fmtShort(recMs(l))), h("td", { class: "m" }, l.anonId), h("td", { class: "m" }, l.taskCode), h("td", { class: "m" }, l.model),
+        h("td", null, l.mode === "translate" ? "翻譯原文" : "提問"), h("td", { class: "cell" }, l.prompt), h("td", { class: "cell" }, l.response),
+        h("td", null, l.convertedToTraditional ? "有轉換" : ""), h("td", { class: "m" }, l.seconds + " 秒")))))));
+  const reflTable = h("div", { class: "card" }, h("h2", null, "課後反思（" + d.refl.filter(okG).filter(okR).length + "）"),
+    d.refl.filter(okG).filter(okR).map((r) => h("div", { class: "box" }, h("h3", null, r.anonId + "　" + r.role + "　" + r.groupId),
+      (r.answers || []).map((x) => h("div", null, h("div", { class: "hint" }, x.q), h("div", { style: "white-space:pre-wrap" }, x.a))))));
+  return h("div", { style: "display:flex;flex-direction:column;gap:20px" }, head, summary, filters, flow, vers, evTable, aiTable, reflTable);
+}
+
+function tExport() {
+  const T = S.T;
+  if (!T.viewSid) return h("div", { class: "card" }, h("p", null, "請先建立場次。"));
+  const rows = dataRows(T.exp.set);
+  const fields = exportFields(rows);
+  return h("div", { class: "card" },
+    h("h2", null, "匯出研究資料"),
+    h("p", { class: "sub" }, "匯出的資料只有匿名編號，不含姓名與 Email。姓名對照請另外在「場次與名單」下載。"),
+    !T.data ? h("div", { class: "card warn" }, h("p", null, "還沒有載入資料。"), h("div", { class: "btns" }, h("button", { onclick: () => act(loadResearch) }, "載入資料"))) : null,
+    h("div", { class: "grid" },
+      h("div", { class: "fld" }, h("label", { for: "xs" }, "資料集"), h("select", { id: "xs", value: T.exp.set, onchange: (e) => { T.exp.set = e.target.value; rr(); } }, EXPORT_SETS.map(([k, n]) => h("option", { value: k }, n)))),
+      h("div", { class: "fld" }, h("label", { for: "xf" }, "格式"), h("select", { id: "xf", value: T.exp.fmt, onchange: (e) => { T.exp.fmt = e.target.value; rr(); } }, h("option", { value: "csv" }, "CSV（Excel 可直接開）"), h("option", { value: "json" }, "JSON")))),
+    h("h3", null, "欄位（" + rows.length + " 列）"),
+    rows.length === 0 ? h("p", { class: "sub" }, "這個資料集目前沒有資料。") :
+      h("div", { class: "fields" }, fields.map((f) => h("label", { class: "chk" }, h("input", { type: "checkbox", checked: !T.exp.off[T.exp.set + ":" + f], onchange: (e) => { T.exp.off[T.exp.set + ":" + f] = !e.target.checked; } }), f))),
+    h("div", { class: "btns" }, h("button", { disabled: !rows.length, onclick: () => { try { doExport(); } catch (e) { toast(e.message, "bad"); } } }, "下載")));
+}
+
+boot();
+</script>
+</body>
+</html>
