@@ -1437,6 +1437,7 @@ async function aiLoad(id) {
   if (AI.status === "loading") return;
   if (IS_COLAB) {
     AI.status = "loading"; AI.pct = 30; AI.text = "連線到 Colab 伺服器…"; rr();
+    await new Promise((r) => setTimeout(r, 600)); // 讓「連線中」至少顯示一下
     try {
       AI.modelId = await colabConnect();
       AI.sim = false;
@@ -1446,7 +1447,7 @@ async function aiLoad(id) {
         AI.sim = true; AI.modelId = "示範模擬 AI";
         AI.status = "ready"; AI.pct = 100; AI.text = "沒有連到 Colab，改用模擬回應（只有示範版會這樣）。原因：" + String(e && e.message ? e.message : e);
       } else {
-        AI.status = "error"; AI.pct = 0; AI.text = String(e && e.message ? e.message : e);
+        AI.status = "error"; AI.pct = 0; AI.text = String(e && e.message ? e.message : e) + "（" + new Date().toLocaleTimeString() + " 嘗試）";
       }
     }
     rr();
