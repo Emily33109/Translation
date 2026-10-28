@@ -326,17 +326,18 @@ const ROLE_DESC = {
 const STEP_KINDS = {
   translate: { label: "翻譯", role: "Translator", short: "翻" },
   review: { label: "審校", role: "Reviewer", short: "審" },
-  revise: { label: "修改", role: "Translator", short: "改" },
+  revise: { label: "翻譯", role: "Translator", short: "翻" },
   pmcheck: { label: "PM 檢查", role: "PM", short: "查" },
   final: { label: "最終檢查（PM）", role: "PM", short: "終" }
 };
 const STATUS_LABEL = { active: "進行中", done: "已完成" };
 const EVENT_LABEL = {
-  dispatch: "派發任務", submit: "完成翻譯/校稿", return: "送回修改", plan_edit: "調整流程", roles_set: "指定組員角色",
+  dispatch: "派發任務", submit: "完成", return: "送回重新翻譯",, plan_edit: "調整流程", roles_set: "指定組員角色",
   pm_confirm: "PM 繳交最終譯文", ai_prompt: "向 AI 提問", ai_insert: "插入 AI 內容", glossary_insert: "插入術語",
   glossary_add: "新增術語", glossary_edit: "修改術語", glossary_delete: "刪除術語", reflection: "繳交反思"
 };
-
+const SUBMIT_LABEL = { translate: "完成翻譯", review: "完成校稿", pmcheck: "完成 PM 檢查", revise: "完成修改" };
+const evLabel = (e) => (e.type === "submit" && SUBMIT_LABEL[e.kind]) || EVENT_LABEL[e.type] || e.type;
 /* ===================== 工具函式 ===================== */
 const $ = (s, r = document) => r.querySelector(s);
 
@@ -436,6 +437,7 @@ function planProblems(plan, ctx) {
   const errs = [];
   const nm = ctx.name || ((a) => a);
   if (!plan.length) return ["流程是空的"];
+  if (!plan.some((x) => x.kind === "translate" || x.kind === "revise")) errs.push("請至少新增一個翻譯步驟");
   if (plan[plan.length - 1].kind !== "final") errs.push("最後一步必須是 PM 的最終檢查");
   if (plan.filter((x) => x.kind === "final").length > 1 && plan.slice(0, -1).some((x) => x.kind === "final" && !x.done)) errs.push("最終檢查只能放在最後");
   const authors = new Set(plan.filter((x) => x.kind === "translate" || x.kind === "revise").map((x) => x.anonId).filter(Boolean));
@@ -1753,11 +1755,7 @@ function rolesPanel() {
 
 /* ---------- 切段與派發（PM） ---------- */
 function defaultPlan(i) {
-  const R = rolesIn(), pm = pmAnon();
-  const tr = R.translators.length ? R.translators[i % R.translators.length] : "";
-  const rvs = R.reviewers.filter((a) => a !== tr);
-  const rv = rvs.length ? rvs[i % rvs.length] : "";
-  return [{ kind: "translate", anonId: tr }, { kind: "review", anonId: rv }, { kind: "revise", anonId: tr }, { kind: "final", anonId: pm }];
+  return [{ kind: "final", anonId: pmAnon() }];
 }
 function startSeg(item) {
   // 先整篇放進第 1 段；PM 自己把要分出去的部分剪下、貼到「新增一段」
@@ -1818,7 +1816,7 @@ function planEditor(pfx, plan, o) {
     const kindCell = (locked || last)
       ? h("span", { class: "pk" }, STEP_KINDS[s.kind].label)
       : h("select", { id: pfx + "-k" + i, value: s.kind, onchange: (e) => { s.kind = e.target.value; s.anonId = s.kind === "pmcheck" ? pm : ""; rr(); } },
-        ["translate", "review", "revise", "pmcheck"].map((k) => h("option", { value: k }, STEP_KINDS[k].label)));
+        ["translate", "review", "pmcheck"].map((k) => h("option", { value: k }, STEP_KINDS[k].label)));
     const who = locked ? h("span", null, nameOf(s.anonId) + (s.done ? "　✓ 已完成" : ""))
       : (s.kind === "final" || s.kind === "pmcheck") ? h("span", null, nameOf(pm) + "（PM）")
         : h("select", { id: pfx + "-p" + i, value: s.anonId || "", onchange: (e) => { s.anonId = e.target.value; rr(); } }, optsFor(s.kind, s.anonId));
@@ -1830,14 +1828,16 @@ function planEditor(pfx, plan, o) {
         h("button", { class: "danger sm", id: pfx + "-rm" + i, onclick: () => { plan.splice(i, 1); rr(); } }, "刪除")) : null);
   });
   const add = (kind) => { plan.splice(plan.length - 1, 0, { kind, anonId: kind === "pmcheck" ? pm : "" }); rr(); };
-  const el = h("div", { class: "pe" }, rows,
+  const el = h("div", { class: "pe" },
+    h("div", { class: "prow locked" }, h("span", { class: "pno" }, "0"), h("span", { class: "pk" }, "派發"), h("span", null, nameOf(pm) + "（PM）")),
+    plan.length <= 1 ? h("div", { class: "hint" }, "還沒有步驟。請用下面的按鈕新增翻譯、審校或 PM 檢查，最後一步固定是 PM 的最終檢查。") : null,
+    rows,
     h("div", { class: "btns" },
       h("button", { class: "ghost sm", id: pfx + "-addt", onclick: () => add("translate") }, "＋ 翻譯"),
       h("button", { class: "ghost sm", id: pfx + "-addr", onclick: () => add("review") }, "＋ 審校"),
-      h("button", { class: "ghost sm", id: pfx + "-addv", onclick: () => add("revise") }, "＋ 修改"),
       h("button", { class: "ghost sm", id: pfx + "-addp", onclick: () => add("pmcheck") }, "＋ PM 檢查")),
     h("div", { class: "hint" }, "用 ↑ ↓ 調整順序，步驟數量不限。只有最後的「最終檢查（PM）」固定在最後，因為它完成後這一段就結束了。"),
-    plan[0] && plan[0].kind !== "translate" ? h("div", { class: "hint" }, "提醒：第一步不是翻譯，第一位拿到的會是空白譯文。") : null,
+    plan.length > 1 && plan[0].kind !== "translate" ? h("div", { class: "hint" }, "提醒：第一步不是翻譯，第一位拿到的會是空白譯文。") : null,
     errs.length ? h("div", { class: "perr" }, errs.map((x) => h("div", null, "⚠ " + x))) : null,
     !errs.length && !plan.some((x) => x.kind === "review") ? h("div", { class: "hint" }, "提醒：這個流程沒有審校步驟。") : null);
   return { el, errs };
@@ -1886,17 +1886,17 @@ function segPanel() {
   const used = new Set(S.tasks.map((x) => x.bankId));
   const pick = S.bank.find((b) => b.id === S.pmPick) || null;
   const kids = [
-    h("p", { class: "hint" }, "本組的目標語言：" + LANGS[S.me.lang].name + "（" + LANGS[S.me.lang].short + "）。原文都是中文。流程由你決定：選好題目後，需要的話把原文分成幾段（複製貼上即可），再替每一段選誰翻譯、誰審校。"),
+    h("p", { class: "hint" }, "本組的目標語言：" + LANGS[S.me.lang].name + "（" + LANGS[S.me.lang].short + "）。原文都是中文。流程由各組自己決定：選好題目後，需要的話把原文分成幾段（複製貼上即可），再替每一段新增步驟（翻譯、審校、PM 檢查），步驟數量不限。"),
     h("label", { for: "pm-pick" }, "選擇題目"),
     h("select", { id: "pm-pick", value: S.pmPick, onchange: (e) => { S.pmPick = e.target.value; S.seg = null; const it = S.bank.find((b) => b.id === e.target.value); if (it) startSeg(it); rr(); } },
       h("option", { value: "" }, "請選擇…"), S.bank.map((b) => h("option", { value: b.id }, b.title + (used.has(b.id) ? "（已派發）" : "")))),
     h("div", { class: "btns" }, h("button", { class: "plain sm", onclick: () => loadBank() }, "重新整理題庫"))];
   if (pick && !sg) startSeg(pick);
   if (pick && S.seg) {
-    kids.push(h("p", { class: "hint" }, "原文先放在第 1 段。要分給不同人，就把一部分文字剪下，按「＋ 新增一段」貼進去；每一段各選誰翻譯、誰審校。"));
+    kids.push(h("p", { class: "hint" }, "原文先放在第 1 段。要分給不同人，就把一部分文字剪下，按「＋ 新增一段」貼進去；每一段各自新增步驟。"));
     let bad = 0;
     S.seg.parts.forEach((p, i) => {
-      const pe = simpleOrFull(i, p);
+      const pe = planEditor("sg" + i, p.plan, {});
       if (pe.errs.length || !p.text.trim()) bad++;
       kids.push(h("div", { class: "box" },
         h("div", { class: "top" }, h("h3", null, "第 " + (i + 1) + " 段　" + p.text.trim().length + " 字"),
@@ -2217,7 +2217,7 @@ function sourceCard(t) {
   const cur = t.stepIdx || 0;
   return h("div", { class: "card slim" },
     h("div", { class: "top" }, h("h2", null, t.code + "　" + t.title), h("span", { class: "badge " + (done ? "ok" : "warn") }, taskStateText(t))),
-    h("ol", { class: "flow" }, (t.plan || []).map((s, i) => {
+    h("ol", { class: "flow" }, h("li", { class: "done" }, h("span", { class: "n" }, "0"), "派發", h("small", null, nameOf(t.createdBy) + "（PM）")), (t.plan || []).map((s, i) => {
       const cls = s.done || done ? "done" : i === cur ? "cur" : "";
       return h("li", { class: cls }, h("span", { class: "n" }, String(i + 1)), STEP_KINDS[s.kind].label,
         h("small", null, nameOf(s.anonId) + (i === cur && !done && !s.done ? "・進行中" : "")));
@@ -2266,7 +2266,7 @@ function retOptions(t, kind) {
   const authors = authorsOf(plan);
   const R = rolesIn();
   const out = [];
-  R.translators.forEach((a) => out.push({ anonId: a, kind: "revise", text: "請 " + nameOf(a) + " 修改" + (authors.includes(a) ? "（原譯者）" : "") }));
+  R.translators.forEach((a) => out.push({ anonId: a, kind: "translate", text: "請 " + nameOf(a) + " 重新翻譯" + (authors.includes(a) ? "（原譯者）" : "") }));
   if (kind === "final" || kind === "pmcheck") R.reviewers.filter((a) => !authors.includes(a)).forEach((a) => out.push({ anonId: a, kind: "review", text: "請 " + nameOf(a) + " 再審校" }));
   return out.filter((o) => o.anonId !== S.me.anonId);
 }
@@ -2298,7 +2298,7 @@ function editPanel(t, mode) {
       h("span", { class: "hint" }, "草稿會自動儲存，提交前可以隨時修改。")),
     canRet ? h("div", { class: "box" },
       h("h3", null, mode === "final" ? "退回" : "送回修改"),
-      h("label", { for: "ret-to" }, "要請誰處理？（處理完會再回到你這一步" + (mode === "review" ? "；原本排在後面的同一人「修改」步驟會被這次送回取代" : "") + "）"),
+      h("label", { for: "ret-to" }, "要請誰處理？（處理完會再回到你這一步）"),
       h("select", { id: "ret-to", value: S.retTarget, onchange: (e) => { S.retTarget = e.target.value; rr(); } },
         h("option", { value: "" }, "請選擇…"), opts.map((o) => h("option", { value: o.anonId + "|" + o.kind }, o.text))),
       h("div", { class: "btns" }, h("button", { id: "step-ret", class: "ghost", disabled: S.busy || !sel || !S.dr.text.trim(), onclick: () => {
@@ -2357,7 +2357,7 @@ function historyPanel(t) {
         h("tbody", null, S.events.map((e) => h("tr", null,
           h("td", { class: "m" }, fmtShort(recMs(e))),
           h("td", null, nameOf(e.anonId) + "（" + (e.role || "") + "）"),
-          h("td", null, EVENT_LABEL[e.type] || e.type, e.toAnon ? " → " + nameOf(e.toAnon) : ""),
+          h("td", null, evLabel(e), e.toAnon ? " → " + nameOf(e.toAnon) : ""),
           h("td", { class: "m" }, e.vLabel || ""),
           h("td", { class: "cell" }, e.detail || "")))))));
 }
@@ -2728,7 +2728,8 @@ function computeKpi(d) {
   const P = (a, g) => (people[a] = people[a] || { session: sname, groupId: g, anonId: a, translate: 0, revise: 0, review: 0, final: 0, chars: 0, workMs: 0, turnMs: 0, pickMs: 0, pickN: 0, returns: 0, glossAdd: 0, glossEdit: 0, glossDel: 0, aiPrompts: 0, aiInserts: 0, glossInserts: 0 });
   d.versions.forEach((v) => {
     const p = P(v.anonId, v.groupId);
-    p[v.kind] = (p[v.kind] || 0) + 1;
+    const kk = v.kind === "revise" ? "translate" : v.kind === "pmcheck" ? "final" : v.kind;
+    p[kk] = (p[kk] || 0) + 1;
     p.chars += v.chars || (v.content || "").length;
     const end = v.clientTime || recMs(v);
     if (v.openedAt) p.workMs += Math.max(0, end - v.openedAt);
@@ -2749,8 +2750,8 @@ function computeKpi(d) {
   const personRows = Object.values(people).map((p) => {
     const hrs = p.workMs / 3600000;
     return {
-      session: p.session, groupId: p.groupId, anonId: p.anonId, translateSteps: p.translate, reviseSteps: p.revise, reviewSteps: p.review, finalSteps: p.final,
-      versions: p.translate + p.revise + p.review + p.final, charsHandled: p.chars, workMin: r1(p.workMs / 60000), turnaroundMin: r1(p.turnMs / 60000),
+      session: p.session, groupId: p.groupId, anonId: p.anonId, translateSteps: p.translate, reviewSteps: p.review, finalSteps: p.final,
+      versions: p.translate + p.review + p.final, charsHandled: p.chars, workMin: r1(p.workMs / 60000), turnaroundMin: r1(p.turnMs / 60000),
       charsPerHour: hrs > 0 ? Math.round(p.chars / hrs) : "", avgPickupMin: p.pickN ? r1(p.pickMs / p.pickN / 60000) : "",
       returnsIssued: p.returns, glossaryAdded: p.glossAdd, glossaryEdited: p.glossEdit, glossaryDeleted: p.glossDel,
       aiPrompts: p.aiPrompts, aiInserts: p.aiInserts, glossaryInserts: p.glossInserts
@@ -3014,7 +3015,7 @@ function tKpi() {
   const ss = seedStatus(d);
   return h("div", { style: "display:flex;flex-direction:column;gap:20px" }, head,
     table("各組", "返工率 ＝ 送回次數 ÷ 已完成步驟數（％）。", [["groupId", "組別"], ["tasks", "任務數"], ["tasksDone", "已完成"], ["versions", "版本數"], ["returns", "送回次數"], ["reworkRate", "返工率 %"], ["planEdits", "調整流程次數"], ["avgTotalMin", "平均全程（分）"], ["glossaryTerms", "術語表筆數"], ["glossaryAddedByStudents", "學生新增術語次數"]], k.groupRows, "kpiGroup"),
-    table("個人", "處理字數 ＝ 該人所有提交版本的字數總和；每小時字數 ＝ 處理字數 ÷ 作業時間；接手時間 ＝ 輪到他到第一次打開的平均時間。", [["groupId", "組別"], ["anonId", "匿名編號"], ["translateSteps", "翻譯"], ["reviseSteps", "修改"], ["reviewSteps", "審校"], ["finalSteps", "最終檢查"], ["charsHandled", "處理字數"], ["workMin", "作業時間（分）"], ["turnaroundMin", "輪到到完成（分）"], ["charsPerHour", "每小時字數"], ["avgPickupMin", "平均接手（分）"], ["returnsIssued", "送回次數"], ["glossaryAdded", "新增術語"], ["glossaryEdited", "修改術語"], ["glossaryDeleted", "刪除術語"], ["aiPrompts", "AI 提問"], ["aiInserts", "插入 AI"], ["glossaryInserts", "插入術語"]], k.personRows, "kpiPerson"),
+    table("個人", "處理字數 ＝ 該人所有提交版本的字數總和；每小時字數 ＝ 處理字數 ÷ 作業時間；接手時間 ＝ 輪到他到第一次打開的平均時間。", [["groupId", "組別"], ["anonId", "匿名編號"], ["translateSteps", "翻譯"], ["reviewSteps", "審校"], ["finalSteps", "PM 檢查"], ["charsHandled", "處理字數"], ["workMin", "作業時間（分）"], ["turnaroundMin", "輪到到完成（分）"], ["charsPerHour", "每小時字數"], ["avgPickupMin", "平均接手（分）"], ["returnsIssued", "送回次數"], ["glossaryAdded", "新增術語"], ["glossaryEdited", "修改術語"], ["glossaryDeleted", "刪除術語"], ["aiPrompts", "AI 提問"], ["aiInserts", "插入 AI"], ["glossaryInserts", "插入術語"]], k.personRows, "kpiPerson"),
     table("每一段任務", "全程 ＝ 派發到 PM 繳交。", [["groupId", "組別"], ["taskCode", "任務"], ["status", "狀態"], ["sourceChars", "原文字數"], ["finalChars", "譯文字數"], ["stepsPlanned", "預定步驟"], ["stepsDone", "已完成步驟"], ["versions", "版本數"], ["returns", "送回次數"], ["reworkRate", "返工率 %"], ["planEdits", "調整流程"], ["totalMin", "全程（分）"]], k.taskRows, "kpiTask"),
     table("老師預放術語：各組處理結果", "「故意放錯」那幾筆最值得看：已修改／已刪除代表該組發現了問題，未更動代表沒有處理。", [["groupId", "組別"], ["src", "中文"], ["seededTgt", "預放譯法"], ["trap", "故意放錯"], ["status", "處理結果"], ["currentTgt", "目前譯法"], ["edits", "修改次數"], ["editedBy", "誰改的"], ["firstChangeMin", "發放後多久處理（分）"]], ss, "seedTerms"));
 }
@@ -3072,7 +3073,7 @@ function tData() {
       h("thead", null, h("tr", null, ["時間", "組別", "任務", "匿名編號", "角色", "事件", "版本", "說明"].map((x) => h("th", null, x)))),
       h("tbody", null, events.map((e) => h("tr", null,
         h("td", { class: "m" }, fmtShort(recMs(e))), h("td", null, e.groupId), h("td", { class: "m" }, e.taskCode), h("td", { class: "m" }, e.anonId), h("td", null, e.role),
-        h("td", null, (EVENT_LABEL[e.type] || e.type) + (e.toRole ? " → " + e.toRole : "")), h("td", { class: "m" }, e.vLabel || ""), h("td", { class: "cell" }, e.detail || "")))))));
+        h("td", null, evLabel(e) + (e.toRole ? " → " + e.toRole : "")),
   const aiTable = h("div", { class: "card" }, h("h2", null, "AI 使用紀錄（" + ai.length + "）"),
     h("div", { class: "tablewrap" }, h("table", null,
       h("thead", null, h("tr", null, ["時間", "匿名編號", "任務", "模型", "類型", "Prompt", "AI 回應", "簡轉繁", "耗時"].map((x) => h("th", null, x)))),
