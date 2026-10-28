@@ -332,7 +332,7 @@ const STEP_KINDS = {
 };
 const STATUS_LABEL = { active: "進行中", done: "已完成" };
 const EVENT_LABEL = {
-  dispatch: "派發任務", submit: "完成", return: "送回重新翻譯",, plan_edit: "調整流程", roles_set: "指定組員角色",
+  dispatch: "派發任務", submit: "完成", return: "送回重新翻譯", plan_edit: "調整流程", roles_set: "指定組員角色",
   pm_confirm: "PM 繳交最終譯文", ai_prompt: "向 AI 提問", ai_insert: "插入 AI 內容", glossary_insert: "插入術語",
   glossary_add: "新增術語", glossary_edit: "修改術語", glossary_delete: "刪除術語", reflection: "繳交反思"
 };
@@ -3073,7 +3073,7 @@ function tData() {
       h("thead", null, h("tr", null, ["時間", "組別", "任務", "匿名編號", "角色", "事件", "版本", "說明"].map((x) => h("th", null, x)))),
       h("tbody", null, events.map((e) => h("tr", null,
         h("td", { class: "m" }, fmtShort(recMs(e))), h("td", null, e.groupId), h("td", { class: "m" }, e.taskCode), h("td", { class: "m" }, e.anonId), h("td", null, e.role),
-        h("td", null, evLabel(e) + (e.toRole ? " → " + e.toRole : "")),
+        h("td", null, evLabel(e) + (e.toRole ? " → " + e.toRole : "")), h("td", { class: "m" }, e.vLabel || ""), h("td", { class: "cell" }, e.detail || "")))))));
   const aiTable = h("div", { class: "card" }, h("h2", null, "AI 使用紀錄（" + ai.length + "）"),
     h("div", { class: "tablewrap" }, h("table", null,
       h("thead", null, h("tr", null, ["時間", "匿名編號", "任務", "模型", "類型", "Prompt", "AI 回應", "簡轉繁", "耗時"].map((x) => h("th", null, x)))),
