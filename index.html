@@ -327,6 +327,7 @@ const STEP_KINDS = {
   translate: { label: "翻譯", role: "Translator", short: "翻" },
   review: { label: "審校", role: "Reviewer", short: "審" },
   revise: { label: "修改", role: "Translator", short: "改" },
+  pmcheck: { label: "PM 檢查", role: "PM", short: "查" },
   final: { label: "最終檢查（PM）", role: "PM", short: "終" }
 };
 const STATUS_LABEL = { active: "進行中", done: "已完成" };
@@ -435,7 +436,6 @@ function planProblems(plan, ctx) {
   const errs = [];
   const nm = ctx.name || ((a) => a);
   if (!plan.length) return ["流程是空的"];
-  if (plan[0].kind !== "translate") errs.push("第一步必須是翻譯");
   if (plan[plan.length - 1].kind !== "final") errs.push("最後一步必須是 PM 的最終檢查");
   if (plan.filter((x) => x.kind === "final").length > 1 && plan.slice(0, -1).some((x) => x.kind === "final" && !x.done)) errs.push("最終檢查只能放在最後");
   const authors = new Set(plan.filter((x) => x.kind === "translate" || x.kind === "revise").map((x) => x.anonId).filter(Boolean));
@@ -443,7 +443,7 @@ function planProblems(plan, ctx) {
     if (i < (ctx.from || 0)) return;
     const lab = "第 " + (i + 1) + " 步（" + STEP_KINDS[s.kind].label + "）";
     if (!s.anonId) { errs.push(lab + "還沒有選人"); return; }
-    if (s.kind === "final") { if (s.anonId !== ctx.pm) errs.push(lab + "必須是 PM"); return; }
+    if (s.kind === "final" || s.kind === "pmcheck") { if (s.anonId !== ctx.pm) errs.push(lab + "必須是 PM"); return; }
     if (s.kind === "review") {
       if (!ctx.reviewers.includes(s.anonId)) errs.push(lab + "：" + nm(s.anonId) + " 沒有 Reviewer 角色");
       if (authors.has(s.anonId)) errs.push(lab + "：" + nm(s.anonId) + " 翻譯或修改過這一段，不能審自己的譯文");
@@ -1814,26 +1814,30 @@ function planEditor(pfx, plan, o) {
   const rows = plan.map((s, i) => {
     const locked = i < from;
     const last = i === plan.length - 1;
-    const movable = !locked && i > 0 && !last;
-    const kindCell = (locked || i === 0 || last)
+    const movable = !locked && !last;
+    const kindCell = (locked || last)
       ? h("span", { class: "pk" }, STEP_KINDS[s.kind].label)
-      : h("select", { id: pfx + "-k" + i, value: s.kind, onchange: (e) => { s.kind = e.target.value; s.anonId = ""; rr(); } },
-        ["review", "revise"].map((k) => h("option", { value: k }, STEP_KINDS[k].label)));
+      : h("select", { id: pfx + "-k" + i, value: s.kind, onchange: (e) => { s.kind = e.target.value; s.anonId = s.kind === "pmcheck" ? pm : ""; rr(); } },
+        ["translate", "review", "revise", "pmcheck"].map((k) => h("option", { value: k }, STEP_KINDS[k].label)));
     const who = locked ? h("span", null, nameOf(s.anonId) + (s.done ? "　✓ 已完成" : ""))
-      : s.kind === "final" ? h("span", null, nameOf(pm) + "（PM）")
+      : (s.kind === "final" || s.kind === "pmcheck") ? h("span", null, nameOf(pm) + "（PM）")
         : h("select", { id: pfx + "-p" + i, value: s.anonId || "", onchange: (e) => { s.anonId = e.target.value; rr(); } }, optsFor(s.kind, s.anonId));
     return h("div", { class: "prow" + (locked ? " locked" : "") },
       h("span", { class: "pno" }, String(i + 1)), kindCell, who,
       movable ? h("div", { class: "btns" },
-        h("button", { class: "plain sm", id: pfx + "-up" + i, disabled: i - 1 < Math.max(from, 1), onclick: () => { plan.splice(i - 1, 0, plan.splice(i, 1)[0]); rr(); } }, "↑"),
+        h("button", { class: "plain sm", id: pfx + "-up" + i, disabled: i - 1 < from, onclick: () => { plan.splice(i - 1, 0, plan.splice(i, 1)[0]); rr(); } }, "↑"),
         h("button", { class: "plain sm", id: pfx + "-dn" + i, disabled: i + 1 >= plan.length - 1, onclick: () => { plan.splice(i + 1, 0, plan.splice(i, 1)[0]); rr(); } }, "↓"),
         h("button", { class: "danger sm", id: pfx + "-rm" + i, onclick: () => { plan.splice(i, 1); rr(); } }, "刪除")) : null);
   });
-  const add = (kind) => { plan.splice(plan.length - 1, 0, { kind, anonId: "" }); rr(); };
+  const add = (kind) => { plan.splice(plan.length - 1, 0, { kind, anonId: kind === "pmcheck" ? pm : "" }); rr(); };
   const el = h("div", { class: "pe" }, rows,
     h("div", { class: "btns" },
-      h("button", { class: "ghost sm", id: pfx + "-addr", onclick: () => add("review") }, "＋ 加一個審校步驟"),
-      h("button", { class: "ghost sm", id: pfx + "-addv", onclick: () => add("revise") }, "＋ 加一個修改步驟")),
+      h("button", { class: "ghost sm", id: pfx + "-addt", onclick: () => add("translate") }, "＋ 翻譯"),
+      h("button", { class: "ghost sm", id: pfx + "-addr", onclick: () => add("review") }, "＋ 審校"),
+      h("button", { class: "ghost sm", id: pfx + "-addv", onclick: () => add("revise") }, "＋ 修改"),
+      h("button", { class: "ghost sm", id: pfx + "-addp", onclick: () => add("pmcheck") }, "＋ PM 檢查")),
+    h("div", { class: "hint" }, "用 ↑ ↓ 調整順序，步驟數量不限。只有最後的「最終檢查（PM）」固定在最後，因為它完成後這一段就結束了。"),
+    plan[0] && plan[0].kind !== "translate" ? h("div", { class: "hint" }, "提醒：第一步不是翻譯，第一位拿到的會是空白譯文。") : null,
     errs.length ? h("div", { class: "perr" }, errs.map((x) => h("div", null, "⚠ " + x))) : null,
     !errs.length && !plan.some((x) => x.kind === "review") ? h("div", { class: "hint" }, "提醒：這個流程沒有審校步驟。") : null);
   return { el, errs };
@@ -1925,8 +1929,8 @@ async function completeStep(t, ret) {
     const plan = (cur.plan || []).map((x) => Object.assign({}, x));
     const st = plan[idx];
     if (cur.status !== "active" || !st || st.anonId !== S.me.anonId) throw new Error("目前不能提交：輪到的人或任務狀態已經改變。請重新整理頁面。");
-    if (st.kind === "review" && authorsOf(plan).includes(S.me.anonId)) throw new Error("你翻譯或修改過這一段，不能審校自己的譯文。請 PM 調整流程。");
-    if (ret && st.kind !== "review" && st.kind !== "final") throw new Error("這一步不能送回");
+    if (st.kind === "review" && authorsOf(plan).includes(S.me.anonId)) throw new Error("你翻譯或修改過這一段，不能審校自己的譯文。請調整流程。");
+    if (ret && st.kind !== "review" && st.kind !== "final" && st.kind !== "pmcheck") throw new Error("這一步不能送回");
     const now = Date.now();
     const vNo = (cur.vCount || 0) + 1, label = "v" + vNo;
     tx.set(F.doc(F.collection(S.db, "tasks", t.id, "versions")), {
@@ -1983,7 +1987,7 @@ async function savePlanEdit(t, tail) {
     const plan = done.concat(merged);
     const errs = planProblems(plan, planCtx(idx));
     if (errs.length) throw new Error(errs[0]);
-    tx.set(F.doc(col("events")), evBase({ id: t.id, code: cur.code }, "plan_edit", { role: "PM", detail: "原：" + planSummary(cur.plan.slice(idx)) + "｜新：" + planSummary(merged) }));
+    tx.set(F.doc(col("events")), evBase({ id: t.id, code: cur.code }, "plan_edit", { role: S.me.roleLabel || "", detail: "原：" + planSummary(cur.plan.slice(idx)) + "｜新：" + planSummary(merged) }));
     tx.update(tref, { plan, stepSeq: seq, updatedAt: F.serverTimestamp() });
   });
   S.pe = null;
@@ -2263,7 +2267,7 @@ function retOptions(t, kind) {
   const R = rolesIn();
   const out = [];
   R.translators.forEach((a) => out.push({ anonId: a, kind: "revise", text: "請 " + nameOf(a) + " 修改" + (authors.includes(a) ? "（原譯者）" : "") }));
-  if (kind === "final") R.reviewers.filter((a) => !authors.includes(a)).forEach((a) => out.push({ anonId: a, kind: "review", text: "請 " + nameOf(a) + " 再審校" }));
+  if (kind === "final" || kind === "pmcheck") R.reviewers.filter((a) => !authors.includes(a)).forEach((a) => out.push({ anonId: a, kind: "review", text: "請 " + nameOf(a) + " 再審校" }));
   return out.filter((o) => o.anonId !== S.me.anonId);
 }
 
@@ -2271,16 +2275,16 @@ function editPanel(t, mode) {
   const idx = t.stepIdx || 0, plan = t.plan || [];
   const next = plan[idx + 1] || null;
   const prev = latestVersion();
-  const titles = { translate: "我的翻譯", revise: "修改譯文", review: "審校譯文", final: "最終檢查" };
+  const titles = { translate: "我的翻譯", revise: "修改譯文", review: "審校譯文", pmcheck: "PM 檢查", final: "最終檢查" };
   let before = null;
-  if (mode === "revise" || mode === "review" || mode === "final") {
+  if (mode === "revise" || mode === "review" || mode === "pmcheck" || mode === "final") {
     before = h("div", { class: "card " + (prev && prev.comment ? "warn" : "") },
       h("h3", null, prev ? "上一步：" + verText(prev) : "上一步"),
       prev && prev.comment ? h("p", { style: "white-space:pre-wrap" }, prev.comment) : h("p", { class: "sub" }, "（上一位沒有留下文字意見）"),
       mode === "review" ? h("p", { class: "hint" }, "你不會審到自己翻譯或修改過的譯文。下面的內容是上一版，直接修改即可。") : null);
   }
   const noteLabel = mode === "translate" ? "給下一位的備註（選填）" : mode === "final" ? "給組員的備註（選填；退回時必填）" : "審校意見／給下一位的備註（選填；送回修改時必填）";
-  const canRet = (mode === "review" || mode === "final");
+  const canRet = (mode === "review" || mode === "pmcheck" || mode === "final");
   const opts = canRet ? retOptions(t, mode) : [];
   const sel = opts.find((o) => o.anonId + "|" + o.kind === S.retTarget) || null;
   const after = h("div", { style: "display:flex;flex-direction:column;gap:12px" },
@@ -2337,7 +2341,7 @@ function planEditPanel(t) {
       h("button", { class: "ghost sm", id: "pe-open", onclick: () => { S.pe = { taskId: t.id, plan: t.plan.map((s) => Object.assign({}, s)) }; rr(); } }, "調整")));
   }
   const pe = planEditor("pe", S.pe.plan, { from: idx });
-  return h("div", { class: "card" }, h("h3", null, "調整這一段的流程（已完成的步驟不能改）"), pe.el,
+  return h("div", { class: "card" }, h("h3", null, "調整這一段的流程（PM 可以自由排順序、想加幾步就加幾步；已完成的步驟不能改）"), pe.el,
     h("div", { class: "btns" },
       h("button", { id: "pe-save", disabled: S.busy || pe.errs.length > 0, onclick: () => act(() => savePlanEdit(t, S.pe.plan.slice(idx)), "已更新流程") }, "儲存流程"),
       h("button", { class: "plain", onclick: () => { S.pe = null; rr(); } }, "取消")));
