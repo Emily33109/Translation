@@ -190,7 +190,7 @@ details summary{cursor:pointer;min-height:44px;display:flex;align-items:center;f
 <noscript>這個頁面需要開啟 JavaScript。</noscript>
 <script type="module">
 /* =====================================================================
- *  翻譯實作儀表板（最終版）
+ *  翻譯專案儀表板（最終版）
  *  請只修改「設定區」。其他程式不需要動。
  * ===================================================================== */
 
@@ -1259,7 +1259,7 @@ function render() {
 }
 
 /* ---------- 共用畫面 ---------- */
-function shell(...kids) { return h("div", { class: "narrow" }, h("h1", null, "翻譯實作儀表板"), ...kids); }
+function shell(...kids) { return h("div", { class: "narrow" }, h("h1", null, "翻譯專案儀表板"), ...kids); }
 
 function viewSetup() {
   return shell(h("div", { class: "card warn" },
@@ -2068,7 +2068,7 @@ function viewStudent() {
   return h("div", { class: "wrap" },
     h("header", { class: "stu-top" },
       h("div", { class: "l" },
-        h("h1", null, "翻譯實作儀表板"),
+        h("h1", null, "翻譯專案儀表板"),
         h("div", { class: "chips" }, chip("Group " + me.groupId, true), chip(S.sessionName || S.sid), chip("匿名編號 " + me.anonId, true))),
       h("div", { class: "btns" },
         S.reflOpen || S.reflection ? h("button", { class: S.reflection ? "plain" : "ghost", onclick: () => { S.showRefl = true; rr(); } }, S.reflection ? "我的反思（已繳交）" : "繳交課後反思") : null,
