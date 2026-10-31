@@ -252,8 +252,7 @@ const REFLECTION_PROMPTS = [
   "根據小組成員各自負責的角色，說明運用哪些AI工具輔助哪一項任務？",
   "在這次實作中，AI產出的內容是否出現需要額外確認、重做或調整的情況？請具體描述該情況，以及你們如何處理。"
 ];
-    "團隊交接與審校的過程中，你覺得哪個環節最有幫助或最有問題？"
-];
+  
 // 每題字數限制（不含空白與換行）
 const REFLECTION_MIN = 150;
 const REFLECTION_MAX = 250;
@@ -2494,6 +2493,7 @@ function viewReflection() {
         } }),
         h("div", { id: "rfc" + i, style: "font-size:13px;text-align:right;color:" + rfCount(i).color }, rfCount(i).text))),
         h("button", { disabled: S.busy, onclick: () => act(submitReflection, "已繳交反思") }, done ? "重新送出" : "送出反思"),
+      h("div", { class: "btns" },
         h("button", { class: "plain", onclick: () => { S.showRefl = false; rr(); } }, "回到工作台"))));
 }
 
