@@ -245,10 +245,20 @@ const SITE_ICON = "📝";
 
 // 5) 課後反思題目（可自行修改、增減）。
 const REFLECTION_PROMPTS = [
-  "這次翻譯過程中，你遇到最大的困難是什麼？你怎麼處理？",
-  "你是怎麼使用離線 AI 的？哪些 AI 的內容你採用了、哪些沒有採用？為什麼？",
-  "團隊交接與審校的過程中，你覺得哪個環節最有幫助或最有問題？"
+  "事先建立流程與組內角色分工（PM、譯者、審校）能否有效協助翻譯專案執行？",
+  "在執行翻譯專案管理專案過程中，小組成員各自負責的角色所面對的最大的挑戰是什麼？請具體描述該情境。",
+  "針對上述所描述的挑戰，小組或成員採取了哪些具體的解決行動？",
+  "以這次實作經驗而言，實作過程中哪個部分最順利(例如分工安排、術語整理、進度掌握、版本管理或組員溝通)?哪個部分最容易出錯需要調整(譯語不一致、交件延誤、溝通落差或工具操作不熟)?",
+  "根據小組成員各自負責的角色，說明運用哪些AI工具輔助哪一項任務？",
+  "在這次實作中，AI產出的內容是否出現需要額外確認、重做或調整的情況？請具體描述該情況，以及你們如何處理。"
 ];
+    "團隊交接與審校的過程中，你覺得哪個環節最有幫助或最有問題？"
+];
+// 每題字數限制（不含空白與換行）
+const REFLECTION_MIN = 150;
+const REFLECTION_MAX = 250;
+// 反思頁最上方的說明文字
+const REFLECTION_INTRO = "請依據您在翻譯專案實作中的參與經驗與分析結果，回答以下問題。每題回覆字數請在 150–250 字之間，並具體描述觀察到的情境、遭遇的問題點，以及您在其中扮演的角色和所採取的行動。請勿使用生成式 AI 工具（如 ChatGPT 或 Gemini 等）直接生成回覆，以確保內容是基於小組實際參與與反思的結果。";
 
 // ---------- 設定區（結束）----------
 
@@ -1993,9 +2003,18 @@ async function savePlanEdit(t, tail) {
   S.pe = null;
 }
 
+function rfLen(t) { return (t || "").replace(/\s/g, "").length; }
+function rfCount(i) {
+  const n = rfLen(S.rf.answers[i]);
+  const ok = n >= REFLECTION_MIN && n <= REFLECTION_MAX;
+  return { text: "目前 " + n + " 字（需 " + REFLECTION_MIN + "–" + REFLECTION_MAX + " 字）", color: ok ? "var(--accent)" : "#B4432F" };
+}
+
 async function submitReflection() {
   const answers = REFLECTION_PROMPTS.map((q, i) => ({ q, a: (S.rf.answers[i] || "").trim() }));
   if (answers.some((x) => !x.a)) throw new Error("每一題都要回答");
+  const bad = answers.findIndex((x) => rfLen(x.a) < REFLECTION_MIN || rfLen(x.a) > REFLECTION_MAX);
+  if (bad >= 0) throw new Error("第 " + (bad + 1) + " 題目前 " + rfLen(answers[bad].a) + " 字，請寫在 " + REFLECTION_MIN + "–" + REFLECTION_MAX + " 字之間");
   const F = S.F;
   const data = {
     sessionId: S.sid, groupId: S.me.groupId, anonId: S.me.anonId, role: S.me.roleLabel, answers,
@@ -2465,10 +2484,15 @@ function viewReflection() {
     h("div", { class: "chips" }, chip("Group " + S.me.groupId, true), chip(S.me.roleLabel), chip("匿名編號 " + S.me.anonId, true)),
     done ? h("div", { class: "card ok" }, h("p", null, "你已經繳交過反思。需要的話可以修改後重新送出。")) : null,
     h("div", { class: "card" },
+      h("p", { style: "color:var(--ink);line-height:1.7;margin:0 0 14px" }, REFLECTION_INTRO),
       REFLECTION_PROMPTS.map((q, i) => h("div", { class: "fld" },
         h("label", { for: "rf" + i, style: "color:var(--ink);font-size:16px" }, (i + 1) + ". " + q),
-        h("textarea", { id: "rf" + i, value: S.rf.answers[i] || "", oninput: (e) => { S.rf.answers[i] = e.target.value; } }))),
-      h("div", { class: "btns" },
+        h("textarea", { id: "rf" + i, rows: 8, value: S.rf.answers[i] || "", oninput: (e) => {
+          S.rf.answers[i] = e.target.value;
+          const c = rfCount(i), el = document.getElementById("rfc" + i);
+          if (el) { el.textContent = c.text; el.style.color = c.color; }
+        } }),
+        h("div", { id: "rfc" + i, style: "font-size:13px;text-align:right;color:" + rfCount(i).color }, rfCount(i).text))),
         h("button", { disabled: S.busy, onclick: () => act(submitReflection, "已繳交反思") }, done ? "重新送出" : "送出反思"),
         h("button", { class: "plain", onclick: () => { S.showRefl = false; rr(); } }, "回到工作台"))));
 }
